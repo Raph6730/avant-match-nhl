@@ -25,11 +25,24 @@ const FICHIER_SORTIE = "data.json";
 const API = "https://api-web.nhle.com/v1";
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Lit une adresse NHL, avec 3 essais si le serveur est surchargé ou coupe la connexion
 async function lire(chemin, fetcher) {
-  const rep = await fetcher(API + chemin);
-  if (!rep.ok) throw new Error(`Erreur ${rep.status} sur ${chemin}`);
-  await pause(PAUSE_ENTRE_APPELS);
-  return rep.json();
+  let derniere;
+  for (let essai = 1; essai <= 3; essai++) {
+    try {
+      const rep = await fetcher(API + chemin);
+      if (rep.ok) {
+        await pause(PAUSE_ENTRE_APPELS);
+        return await rep.json();
+      }
+      derniere = new Error(`Erreur ${rep.status} sur ${chemin}`);
+      if (rep.status !== 429 && rep.status < 500) break; // inutile de réessayer
+    } catch (e) {
+      derniere = new Error(`${e.message} sur ${chemin}`);
+    }
+    await pause(1500 * essai);
+  }
+  throw derniere;
 }
 
 const nomEquipe = (t) => `${t.placeName?.fr || t.placeName?.default || ""} ${t.commonName?.fr || t.commonName?.default || ""}`.trim();
@@ -172,6 +185,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     })
     .catch((e) => {
       console.error("Échec du robot :", e);
+      // ligne lisible dans le résumé de l'exécution sur GitHub
+      console.log(`::error::Échec du robot : ${String(e.stack || e).replace(/\n/g, " | ")}`);
       process.exit(1);
     });
 }
