@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Avant-Match NHL</title>
+<!-- Compteur de visites GoatCounter (code fourni par GoatCounter) -->
+<script data-goatcounter="https://raph6730.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <meta name="description" content="Les matchs NHL du soir analysés pour préparer tes paris : forme, domicile/extérieur, joueurs en forme.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -170,29 +172,14 @@ const SEUIL_AVANTAGE = 3;           // écart minimum pour annoncer un avantage
 // ----------------------------------------------------
 
 // ---- COMPTEUR DE VISITES (GoatCounter, gratuit, sans cookies) ----
-// Mets ici ton code GoatCounter (ce qui est avant ".goatcounter.com").
-// Laisse vide "" pour désactiver le compteur.
-const CODE_GOATCOUNTER = "raph6730";
-// ----------------------------------------------------
-
-// Compte une visite à chaque écran vu (liste, match, joueurs),
-// pour savoir quelles pages servent vraiment.
+// Le script officiel est chargé dans le <head> (cherche "goatcounter").
+// Il compte l'ouverture du site. Ici on compte en plus chaque écran
+// ouvert ensuite (une page match, le classement joueurs).
 function compterVisite() {
-  if (!CODE_GOATCOUNTER) return;
   const chemin = "/" + (location.hash.replace("#", "").replace(/^match-.*/, "match") || "accueil");
-  if (window.goatcounter && window.goatcounter.count) {
-    window.goatcounter.count({ path: chemin });
-  }
+  try { window.goatcounter?.count?.({ path: chemin, title: chemin }); } catch (e) {}
 }
-if (CODE_GOATCOUNTER) {
-  window.goatcounter = { no_onload: true };
-  const s = document.createElement("script");
-  s.async = true;
-  s.src = "https://gc.zgo.at/count.js";
-  s.dataset.goatcounter = `https://${CODE_GOATCOUNTER}.goatcounter.com/count`;
-  s.onload = compterVisite;
-  document.head.appendChild(s);
-}
+// ----------------------------------------------------
 
 let D = null; // les données chargées
 
