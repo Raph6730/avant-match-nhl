@@ -33,5 +33,5 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 ## Limites connues (volontaires pour le test)
 
 - Pas de gardiens titulaires probables, pas de blessés, pas de cotes.
-- En début de saison, la forme inclut des matchs de la saison précédente (affichés en pointillés).
+- Saison en cours uniquement : tant qu'une équipe a joué moins de 3 matchs, l'indicateur affiche « Trop tôt pour juger ».
 - Source NHL non officielle : elle peut changer sans prévenir.

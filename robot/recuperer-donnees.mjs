@@ -114,18 +114,10 @@ export async function construireDonnees(fetcher = fetch) {
 
   for (const abbrev of abbrevs) {
     const cal = await lire(`/club-schedule-season/${abbrev}/now`, fetcher);
-    let historique = matchsTermines(cal, abbrev);
-
-    // Début de saison : pas assez de matchs ? On complète avec la saison précédente.
-    if (historique.length < NB_MATCHS_DOM_EXT && cal.previousSeason) {
-      try {
-        const calPrec = await lire(`/club-schedule-season/${abbrev}/${cal.previousSeason}`, fetcher);
-        historique = historique.concat(matchsTermines(calPrec, abbrev));
-      } catch (e) {
-        console.warn(`Saison précédente indisponible pour ${abbrev} : ${e.message}`);
-      }
-    }
-    historique = historique.slice(0, NB_MATCHS_DOM_EXT);
+    // Saison en cours uniquement : les effectifs changent trop d'une saison à l'autre.
+    const historique = matchsTermines(cal, abbrev)
+      .filter((m) => !cal.currentSeason || m.saison === cal.currentSeason)
+      .slice(0, NB_MATCHS_DOM_EXT);
     const forme = historique.slice(0, NB_MATCHS_FORME);
 
     const feuilles = [];
