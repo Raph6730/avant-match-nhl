@@ -1,0 +1,64 @@
+# ============================================================
+#  LE PLANNING DU ROBOT
+# ------------------------------------------------------------
+#  Ce fichier dit à GitHub : « deux fois par jour, lance le
+#  robot, puis mets le site à jour avec les nouvelles données ».
+#
+#  Il se déclenche aussi quand tu modifies index.html
+#  (pour que tes changements soient en ligne tout de suite),
+#  et tu peux le lancer à la main depuis l'onglet « Actions ».
+# ============================================================
+
+name: Mise à jour du site
+
+on:
+  schedule:
+    # Horaires en heure UTC (Paris = UTC+2 l'été, UTC+1 l'hiver)
+    # 06:47 UTC ≈ 8h47 à Paris (résultats de la nuit)
+    # 14:47 UTC ≈ 16h47 à Paris (avant les matchs du soir)
+    - cron: "47 6 * * *"
+    - cron: "47 14 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  construire-et-publier:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}
+    steps:
+      - name: Récupérer les fichiers du projet
+        uses: actions/checkout@v4
+
+      - name: Préparer Node (le moteur qui fait tourner le robot)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Lancer le robot NHL
+        run: node robot/recuperer-donnees.mjs
+
+      - name: Rassembler le site (page + données)
+        run: |
+          mkdir -p site
+          cp index.html data.json site/
+
+      - name: Préparer la publication
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Publier sur GitHub Pages
+        id: publication
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Avant-Match NHL</title>
+<meta name="description" content="Les matchs NHL du soir analysés pour préparer tes paris : forme, domicile/extérieur, joueurs en forme.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Mise en page : une colonne mobile d'abord, façon tableau d'affichage de patinoire.
+   ---- RÉGLAGES DE COULEUR ET DE POLICE (tu peux les modifier ici) ---- */
+:root {
+  --fond: #f3f5f7;
+  --surface: #ffffff;
+  --ligne: #dde3ea;
+  --texte: #14202b;
+  --discret: #5d6b78;
+  --accent: #1f7fb8;          /* la seule couleur d'accent : bleu glace */
+  --accent-doux: #e3f0f8;
+  --victoire: #1d8a55;
+  --defaite: #c2453b;
+  --nul: #a3770d;
+  --police-titre: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --police-texte: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fond: #0e151c; --surface: #16202a; --ligne: #263441; --texte: #e6edf3;
+    --discret: #8fa0b0; --accent: #6cbbe6; --accent-doux: #16303f;
+    --victoire: #4cc28a; --defaite: #ec7a70; --nul: #e0b44a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --fond: #0e151c; --surface: #16202a; --ligne: #263441; --texte: #e6edf3;
+  --discret: #8fa0b0; --accent: #6cbbe6; --accent-doux: #16303f;
+  --victoire: #4cc28a; --defaite: #ec7a70; --nul: #e0b44a; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--fond); color: var(--texte);
+  font-family: var(--police-texte); font-size: 15px; line-height: 1.5;
+  margin: 0; padding-inline: 16px; padding-block: 0 48px;
+}
+.conteneur { max-width: 720px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--police-titre); line-height: 1.1; margin: 0; text-wrap: balance; }
+.chiffres { font-variant-numeric: tabular-nums; }
+a { color: var(--accent); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* En-tête */
+header.tete {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--fond); border-bottom: 1px solid var(--ligne);
+  margin-inline: -16px; padding: 14px 16px 0;
+}
+.tete-haut { max-width: 720px; margin: 0 auto; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.marque { font-family: var(--police-titre); font-weight: 700; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; }
+.marque span { color: var(--accent); }
+.maj { color: var(--discret); font-size: 13px; }
+nav.onglets { max-width: 720px; margin: 10px auto 0; display: flex; gap: 4px; }
+nav.onglets button {
+  font: 600 15px var(--police-titre); letter-spacing: .06em; text-transform: uppercase;
+  background: none; border: 0; color: var(--discret); padding: 8px 12px 10px; cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+nav.onglets button[aria-selected="true"] { color: var(--texte); border-bottom-color: var(--accent); }
+
+.bandeau { background: var(--accent-doux); border: 1px solid var(--ligne); border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+.etiquette { font: 600 12px var(--police-texte); letter-spacing: .08em; text-transform: uppercase; color: var(--discret); }
+.titre-section { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.titre-section h2 { font-size: 24px; text-transform: uppercase; letter-spacing: .02em; }
+
+/* Liste des matchs */
+.liste { display: grid; gap: 10px; }
+.carte-match {
+  display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center;
+  background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px;
+  padding: 14px 16px; text-decoration: none; color: inherit; cursor: pointer;
+}
+.carte-match:hover { border-color: var(--accent); }
+.affiche { font-family: var(--police-titre); font-weight: 600; font-size: 22px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-width: 0; }
+.affiche .at { color: var(--discret); font-weight: 500; font-size: 16px; }
+.heure { font-family: var(--police-titre); font-size: 20px; font-weight: 600; text-align: right; }
+.sous { color: var(--discret); font-size: 13px; grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.puce { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--ligne); }
+.puce.avantage { background: var(--accent-doux); color: var(--accent); border-color: transparent; }
+.puce.equilibre { color: var(--discret); }
+
+/* Page match */
+.retour { background: none; border: 0; color: var(--accent); font: 600 14px var(--police-texte); padding: 0; cursor: pointer; justify-self: start; }
+.duel { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; text-align: center; }
+.duel .eq-abbr { font-family: var(--police-titre); font-weight: 700; font-size: 44px; line-height: 1; }
+.duel .eq-nom { color: var(--discret); font-size: 13px; }
+.duel .vs { color: var(--discret); font-family: var(--police-titre); font-size: 18px; }
+
+.verdict { background: var(--surface); border: 1px solid var(--ligne); border-left: 4px solid var(--accent); border-radius: 10px; padding: 16px; display: grid; gap: 12px; }
+.verdict h3 { font-size: 26px; }
+.jauge { position: relative; height: 10px; border-radius: 99px; background: var(--ligne); overflow: hidden; }
+.jauge i { position: absolute; top: 0; bottom: 0; background: var(--accent); }
+.jauge::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--discret); }
+.jauge-legende { display: flex; justify-content: space-between; font-size: 12px; color: var(--discret); }
+
+.grille-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.bloc { background: var(--surface); border: 1px solid var(--ligne); border-radius: 10px; padding: 14px 16px; display: grid; gap: 10px; min-width: 0; }
+.bloc h3 { font-size: 20px; text-transform: uppercase; letter-spacing: .02em; }
+
+.forme { display: flex; gap: 5px; flex-wrap: wrap; }
+.forme span {
+  width: 34px; height: 34px; border-radius: 6px; display: grid; place-items: center;
+  font: 700 15px var(--police-titre); color: #fff;
+}
+.forme .V { background: var(--victoire); }
+.forme .D { background: var(--defaite); }
+.forme .DP { background: var(--nul); }
+.forme .P { outline: 2px dashed var(--discret); outline-offset: 1px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font: 600 11px var(--police-texte); letter-spacing: .08em; text-transform: uppercase; color: var(--discret); padding: 6px 4px; border-bottom: 1px solid var(--ligne); }
+td { padding: 7px 4px; border-bottom: 1px solid var(--ligne); }
+tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.defile { overflow-x: auto; }
+.lien-match { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+
+.regle { font-size: 13px; color: var(--discret); }
+.regle ul { margin: 6px 0 0; padding-left: 18px; }
+footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--ligne); padding-top: 14px; }
+.vide { background: var(--surface); border: 1px dashed var(--ligne); border-radius: 10px; padding: 24px; text-align: center; color: var(--discret); }
+</style>
+
+</head>
+<body>
+<header class="tete">
+  <div class="tete-haut">
+    <div class="marque">Avant-Match <span>NHL</span></div>
+    <div class="maj" id="maj">Chargement…</div>
+  </div>
+  <nav class="onglets" role="tablist">
+    <button id="onglet-matchs" role="tab" aria-selected="true">Matchs du soir</button>
+    <button id="onglet-joueurs" role="tab" aria-selected="false">Joueurs en forme</button>
+  </nav>
+</header>
+
+<main class="conteneur" style="margin-top:18px">
+  <div id="demo" class="bandeau" hidden><strong>Données de démonstration.</strong> Les vraies affiches de ce soir, mais les stats et les noms de joueurs sont fictifs. Une fois en ligne, le robot remplace tout par les vraies données.</div>
+  <div id="vue"></div>
+  <footer>
+    Outil d'information, pas un conseil de pari. Jouer comporte des risques : endettement, dépendance… Appelez le 09 74 75 13 13 (appel non surtaxé).<br>
+    Données : NHL (source publique non officielle). Heures affichées à l'heure de Paris.
+  </footer>
+</main>
+
+<script>
+// ============================================================
+//  LA LOGIQUE DE LA PAGE
+//  Tout ce qui calcule le verdict est dans "calculerVerdict".
+//  Les poids sont réglables juste en dessous.
+// ============================================================
+
+// ---- RÉGLAGES DE L'INDICATEUR "AVANTAGE FORME" ----
+const POINTS_VICTOIRE = 2;          // comme au classement NHL
+const POINTS_DEFAITE_PROLONG = 1;   // défaite en prolongation ou tirs au but
+const POIDS_DIFF_BUTS = 0.5;        // chaque but d'écart sur les 5 matchs vaut 0,5
+const BONUS_DOMICILE = 1;           // avantage de la glace
+const SEUIL_AVANTAGE = 3;           // écart minimum pour annoncer un avantage
+// ----------------------------------------------------
+
+// ---- COMPTEUR DE VISITES (GoatCounter, gratuit, sans cookies) ----
+// Mets ici ton code GoatCounter (ce qui est avant ".goatcounter.com").
+// Laisse vide "" pour désactiver le compteur.
+const CODE_GOATCOUNTER = "";
+// ----------------------------------------------------
+
+// Compte une visite à chaque écran vu (liste, match, joueurs),
+// pour savoir quelles pages servent vraiment.
+function compterVisite() {
+  if (!CODE_GOATCOUNTER) return;
+  const chemin = "/" + (location.hash.replace("#", "").replace(/^match-.*/, "match") || "accueil");
+  if (window.goatcounter && window.goatcounter.count) {
+    window.goatcounter.count({ path: chemin });
+  }
+}
+if (CODE_GOATCOUNTER) {
+  window.goatcounter = { no_onload: true };
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = "https://gc.zgo.at/count.js";
+  s.dataset.goatcounter = `https://${CODE_GOATCOUNTER}.goatcounter.com/count`;
+  s.onload = compterVisite;
+  document.head.appendChild(s);
+}
+
+let D = null; // les données chargées
+
+const heureParis = (iso) => new Date(iso).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" });
+const dateParis = (iso) => new Date(iso).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" });
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const signe = (n) => (n > 0 ? "+" : "") + (Math.round(n * 10) / 10).toString().replace(".", ",");
+
+function formeEquipe(abbrev) {
+  const e = D.equipes[abbrev];
+  const n = D.reglages?.nbMatchsForme || 5;
+  const matchs = e ? e.historique.slice(0, n) : [];
+  let points = 0, bp = 0, bc = 0, v = 0, d = 0, dp = 0;
+  for (const m of matchs) {
+    bp += m.butsPour; bc += m.butsContre;
+    if (m.victoire) { points += POINTS_VICTOIRE; v++; }
+    else if (m.prolongation) { points += POINTS_DEFAITE_PROLONG; dp++; }
+    else d++;
+  }
+  const ancienne = matchs.some((m) => D.saisonEnCours && m.saison !== D.saisonEnCours);
+  return { matchs, points, max: matchs.length * POINTS_VICTOIRE, diff: bp - bc, bp, bc, v, d, dp, ancienne };
+}
+
+function bilanLieu(abbrev, aDomicile) {
+  const e = D.equipes[abbrev];
+  const liste = e ? e.historique.filter((m) => m.domicile === aDomicile) : [];
+  const v = liste.filter((m) => m.victoire).length;
+  const dp = liste.filter((m) => !m.victoire && m.prolongation).length;
+  return { joues: liste.length, v, d: liste.length - v - dp, dp };
+}
+
+// Le verdict : toujours le même calcul, donc toujours le même résultat pour un même match.
+function calculerVerdict(match) {
+  const dom = formeEquipe(match.domicile.abbrev);
+  const ext = formeEquipe(match.exterieur.abbrev);
+  const scoreDom = dom.points + dom.diff * POIDS_DIFF_BUTS + BONUS_DOMICILE;
+  const scoreExt = ext.points + ext.diff * POIDS_DIFF_BUTS;
+  const ecart = scoreDom - scoreExt;
+  let favori = null;
+  if (ecart >= SEUIL_AVANTAGE) favori = match.domicile;
+  else if (ecart <= -SEUIL_AVANTAGE) favori = match.exterieur;
+  return { dom, ext, scoreDom, scoreExt, ecart, favori };
+}
+
+function puceVerdict(v) {
+  return v.favori
+    ? `<span class="puce avantage">Avantage forme : ${esc(v.favori.abbrev)}</span>`
+    : `<span class="puce equilibre">Match équilibré</span>`;
+}
+
+function pastilles(f) {
+  // du plus ancien au plus récent, de gauche à droite
+  return [...f.matchs].reverse().map((m) => {
+    const cls = m.victoire ? "V" : m.prolongation ? "DP" : "D";
+    const lettre = m.victoire ? "V" : m.prolongation ? "DP" : "D";
+    const prec = D.saisonEnCours && m.saison !== D.saisonEnCours ? " P" : "";
+    const titre = `${m.date} · ${m.domicile ? "vs" : "@"} ${m.adversaire} · ${m.butsPour}-${m.butsContre}${m.prolongation ? " (prol.)" : ""}`;
+    return `<span class="${cls}${prec}" title="${esc(titre)}">${lettre}</span>`;
+  }).join("");
+}
+
+// ---------- VUE : LISTE DES MATCHS ----------
+function vueMatchs() {
+  if (!D.matchs.length) return `<div class="vide">Pas de match NHL prévu pour l'instant. Reviens plus tard.</div>`;
+  const cartes = D.matchs.map((m) => {
+    const v = calculerVerdict(m);
+    return `<a class="carte-match" href="#match-${m.id}">
+      <div class="affiche"><span>${esc(m.exterieur.abbrev)}</span><span class="at">@</span><span>${esc(m.domicile.abbrev)}</span></div>
+      <div class="heure chiffres">${heureParis(m.debutUTC)}</div>
+      <div class="sous">${puceVerdict(v)}<span>${esc(m.exterieur.nom)} chez ${esc(m.domicile.nom)}</span></div>
+    </a>`;
+  }).join("");
+  return `<div class="titre-section"><h2>Matchs du soir</h2><span class="etiquette">${D.matchs[0] ? dateParis(D.matchs[0].debutUTC) : ""}</span></div>
+    <div class="liste" style="margin-top:12px">${cartes}</div>`;
+}
+
+// ---------- VUE : PAGE D'UN MATCH ----------
+function blocForme(eq, f, lieu, b) {
+  const rec = `${f.v}-${f.d}-${f.dp}`;
+  return `<div class="bloc">
+    <h3>${esc(eq.abbrev)} · forme</h3>
+    <div class="forme">${pastilles(f)}</div>
+    <table class="chiffres"><tbody>
+      <tr><td>Bilan ${f.matchs.length} derniers (V-D-DP)</td><td class="n">${rec}</td></tr>
+      <tr><td>Points pris</td><td class="n">${f.points} / ${f.max}</td></tr>
+      <tr><td>Buts pour / contre</td><td class="n">${f.bp} / ${f.bc} (${signe(f.diff)})</td></tr>
+      <tr><td>${lieu === "dom" ? "À domicile" : "À l'extérieur"} (${D.reglages?.nbMatchsDomExt || 10} derniers)</td><td class="n">${b.v}-${b.d}-${b.dp}</td></tr>
+    </tbody></table>
+    ${f.ancienne ? `<div class="regle">Les cases en pointillés sont des matchs de la saison dernière (début de saison).</div>` : ""}
+  </div>`;
+}
+
+function blocJoueurs(eq) {
+  const j = (D.equipes[eq.abbrev]?.joueurs || []).slice(0, 3);
+  if (!j.length) return `<div class="bloc"><h3>${esc(eq.abbrev)} · en forme</h3><div class="regle">Pas de données joueurs.</div></div>`;
+  return `<div class="bloc"><h3>${esc(eq.abbrev)} · en forme</h3><div class="defile"><table>
+    <thead><tr><th>Joueur</th><th class="n">MJ</th><th class="n">B</th><th class="n">A</th><th class="n">Pts</th><th class="n">Tirs</th></tr></thead>
+    <tbody>${j.map((p) => `<tr><td>${esc(p.nom)} <span class="regle">${esc(p.poste)}</span></td><td class="n">${p.matchs}</td><td class="n">${p.buts}</td><td class="n">${p.passes}</td><td class="n"><strong>${p.points}</strong></td><td class="n">${p.tirs}</td></tr>`).join("")}</tbody>
+  </table></div></div>`;
+}
+
+function vueMatch(id) {
+  const m = D.matchs.find((x) => String(x.id) === String(id));
+  if (!m) return `<button class="retour" data-aller="">← Tous les matchs</button><div class="vide">Ce match n'est plus au programme.</div>`;
+  const v = calculerVerdict(m);
+  const total = Math.abs(v.scoreDom) + Math.abs(v.scoreExt) || 1;
+  // jauge : centre = égalité ; vers la droite = domicile, vers la gauche = extérieur
+  const part = Math.max(-1, Math.min(1, v.ecart / 8));
+  const gauche = part >= 0 ? 50 : 50 + part * 50;
+  const largeur = Math.abs(part) * 50;
+  const titre = v.favori ? `Avantage forme : ${esc(v.favori.nom)}` : "Match équilibré sur la forme";
+
+  return `<button class="retour" data-aller="">← Tous les matchs</button>
+  <div class="duel">
+    <div><div class="eq-abbr">${esc(m.exterieur.abbrev)}</div><div class="eq-nom">${esc(m.exterieur.nom)}<br>extérieur</div></div>
+    <div class="vs">${heureParis(m.debutUTC)}</div>
+    <div><div class="eq-abbr">${esc(m.domicile.abbrev)}</div><div class="eq-nom">${esc(m.domicile.nom)}<br>domicile</div></div>
+  </div>
+
+  <section class="verdict">
+    <span class="etiquette">Indicateur</span>
+    <h3>${titre}</h3>
+    <div>
+      <div class="jauge" aria-label="Écart ${signe(v.ecart)}"><i style="left:${gauche}%;width:${largeur}%"></i></div>
+      <div class="jauge-legende chiffres"><span>${esc(m.exterieur.abbrev)} ${signe(v.scoreExt)}</span><span>écart ${signe(v.ecart)}</span><span>${esc(m.domicile.abbrev)} ${signe(v.scoreDom)}</span></div>
+    </div>
+    <details class="regle"><summary>Comment c'est calculé</summary>
+      <ul>
+        <li>Points sur les ${D.reglages?.nbMatchsForme || 5} derniers matchs : victoire ${POINTS_VICTOIRE}, défaite en prolongation ${POINTS_DEFAITE_PROLONG}, défaite 0.</li>
+        <li>+ ${String(POIDS_DIFF_BUTS).replace(".", ",")} par but de différence sur ces matchs.</li>
+        <li>+ ${BONUS_DOMICILE} pour l'équipe à domicile.</li>
+        <li>Avantage annoncé si l'écart atteint ${SEUIL_AVANTAGE} ou plus. Sinon : match équilibré.</li>
+      </ul>
+      Ne tient pas compte des gardiens titulaires ni des blessés.
+    </details>
+  </section>
+
+  <div class="grille-2">
+    ${blocForme(m.exterieur, v.ext, "ext", bilanLieu(m.exterieur.abbrev, false))}
+    ${blocForme(m.domicile, v.dom, "dom", bilanLieu(m.domicile.abbrev, true))}
+  </div>
+  <div class="grille-2">
+    ${blocJoueurs(m.exterieur)}
+    ${blocJoueurs(m.domicile)}
+  </div>`;
+}
+
+// ---------- VUE : CLASSEMENT DES JOUEURS EN FORME ----------
+function vueJoueurs() {
+  const lignes = [];
+  for (const m of D.matchs) {
+    for (const eq of [m.exterieur, m.domicile]) {
+      for (const p of D.equipes[eq.abbrev]?.joueurs || []) lignes.push({ ...p, equipe: eq.abbrev, match: m });
+    }
+  }
+  lignes.sort((a, b) => b.points - a.points || b.buts - a.buts || b.tirs - a.tirs);
+  if (!lignes.length) return `<div class="vide">Pas encore de joueurs à classer.</div>`;
+  const n = D.reglages?.nbMatchsForme || 5;
+  return `<div class="titre-section"><h2>Joueurs en forme</h2><span class="etiquette">Équipes qui jouent ce soir · ${n} derniers matchs</span></div>
+  <div class="bloc" style="margin-top:12px"><div class="defile"><table>
+    <thead><tr><th class="n">#</th><th>Joueur</th><th>Match</th><th class="n">B</th><th class="n">A</th><th class="n">Pts</th><th class="n">Tirs</th></tr></thead>
+    <tbody>${lignes.slice(0, 30).map((p, i) => `<tr>
+      <td class="n">${i + 1}</td>
+      <td>${esc(p.nom)} <span class="regle">${esc(p.equipe)} · ${esc(p.poste)}</span></td>
+      <td><button class="lien-match" data-aller="match-${p.match.id}">${esc(p.match.exterieur.abbrev)} @ ${esc(p.match.domicile.abbrev)}</button></td>
+      <td class="n">${p.buts}</td><td class="n">${p.passes}</td><td class="n"><strong>${p.points}</strong></td><td class="n">${p.tirs}</td>
+    </tr>`).join("")}</tbody>
+  </table></div></div>`;
+}
+
+// ---------- NAVIGATION ----------
+function afficher() {
+  const h = location.hash.replace("#", "");
+  const vue = document.getElementById("vue");
+  const joueurs = h === "joueurs";
+  document.getElementById("onglet-matchs").setAttribute("aria-selected", String(!joueurs));
+  document.getElementById("onglet-joueurs").setAttribute("aria-selected", String(joueurs));
+  if (h.startsWith("match-")) vue.innerHTML = vueMatch(h.slice(6));
+  else if (joueurs) vue.innerHTML = vueJoueurs();
+  else vue.innerHTML = vueMatchs();
+  vue.style.display = "grid"; vue.style.gap = "16px";
+}
+function aller(cible) { location.hash = cible; if (!cible) afficher(); window.scrollTo(0, 0); }
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-aller]");
+  if (b) { e.preventDefault(); aller(b.dataset.aller); }
+});
+document.getElementById("onglet-matchs").onclick = () => aller("");
+document.getElementById("onglet-joueurs").onclick = () => aller("joueurs");
+window.addEventListener("hashchange", () => { afficher(); compterVisite(); });
+
+// ---------- CHARGEMENT DES DONNÉES ----------
+async function demarrer() {
+  try {
+    const rep = await fetch("data.json", { cache: "no-store" });
+    if (!rep.ok) throw new Error(rep.status);
+    D = await rep.json();
+  } catch (e) {
+    if (window.DONNEES_DEMO) { D = window.DONNEES_DEMO; document.getElementById("demo").hidden = false; }
+    else { document.getElementById("vue").innerHTML = `<div class="vide">Impossible de charger les données. Le robot n'a peut-être pas encore tourné : lance-le depuis l'onglet « Actions » de GitHub.</div>`; document.getElementById("maj").textContent = ""; return; }
+  }
+  const d = new Date(D.misAJour);
+  document.getElementById("maj").textContent = "Mis à jour " + d.toLocaleString("fr-FR", { timeZone: "Europe/Paris", weekday: "short", hour: "2-digit", minute: "2-digit" });
+  afficher();
+}
+demarrer();
+</script>
+</body>
+</html>
