@@ -32,6 +32,7 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 
 ## Limites connues (volontaires pour le test)
 
+- En début de saison, la forme est complétée par les matchs de présaison de l'année en cours (signalés en pointillés). Seuls les joueurs de l'effectif actuel sont affichés.
 - Pas de gardiens titulaires probables, pas de blessés, pas de cotes.
 - Saison en cours uniquement : tant qu'une équipe a joué moins de 3 matchs, l'indicateur affiche « Trop tôt pour juger ».
 - Source NHL non officielle : elle peut changer sans prévenir.

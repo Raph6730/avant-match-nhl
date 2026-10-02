@@ -56,10 +56,11 @@ export function extraireMatchsDuSoir(calendrier) {
   return { date: null, matchs: [] };
 }
 
-// 2) Les derniers matchs terminés d'une équipe (saison régulière + séries)
+// 2) Les derniers matchs terminés d'une équipe
+//    type 1 = présaison, 2 = saison régulière, 3 = séries
 export function matchsTermines(calendrierEquipe, abbrev) {
   return (calendrierEquipe.games || [])
-    .filter((g) => ["OFF", "FINAL"].includes(g.gameState) && [2, 3].includes(g.gameType))
+    .filter((g) => ["OFF", "FINAL"].includes(g.gameState) && [1, 2, 3].includes(g.gameType))
     .map((g) => {
       const aDomicile = g.homeTeam.abbrev === abbrev;
       const nous = aDomicile ? g.homeTeam : g.awayTeam;
@@ -75,19 +76,22 @@ export function matchsTermines(calendrierEquipe, abbrev) {
         butsContre: eux.score,
         victoire: nous.score > eux.score,
         prolongation,
+        presaison: g.gameType === 1,
       };
     })
     .sort((a, b) => (a.date < b.date ? 1 : -1)); // du plus récent au plus ancien
 }
 
 // 3) Les stats des joueurs sur les derniers matchs, à partir des feuilles de match
-export function cumulerJoueurs(feuilles, abbrev) {
+//    effectif = numéros des joueurs de l'effectif actuel (ou null = pas de filtre)
+export function cumulerJoueurs(feuilles, abbrev, effectif = null) {
   const joueurs = new Map();
   for (const f of feuilles) {
     const cote = f.homeTeam.abbrev === abbrev ? "homeTeam" : "awayTeam";
     const stats = f.playerByGameStats?.[cote];
     if (!stats) continue;
     for (const p of [...(stats.forwards || []), ...(stats.defense || [])]) {
+      if (effectif && !effectif.has(p.playerId)) continue; // joueur plus dans l'équipe
       const j = joueurs.get(p.playerId) || {
         id: p.playerId, nom: p.name?.default, poste: p.position,
         matchs: 0, buts: 0, passes: 0, points: 0, tirs: 0,
@@ -115,10 +119,23 @@ export async function construireDonnees(fetcher = fetch) {
   for (const abbrev of abbrevs) {
     const cal = await lire(`/club-schedule-season/${abbrev}/now`, fetcher);
     // Saison en cours uniquement : les effectifs changent trop d'une saison à l'autre.
-    const historique = matchsTermines(cal, abbrev)
-      .filter((m) => !cal.currentSeason || m.saison === cal.currentSeason)
-      .slice(0, NB_MATCHS_DOM_EXT);
-    const forme = historique.slice(0, NB_MATCHS_FORME);
+    const saison = matchsTermines(cal, abbrev).filter((m) => !cal.currentSeason || m.saison === cal.currentSeason);
+    const officiels = saison.filter((m) => !m.presaison).slice(0, NB_MATCHS_DOM_EXT);
+    // Début de saison : on complète avec la présaison de CETTE année (signalée sur le site).
+    const manque = Math.max(0, NB_MATCHS_FORME - officiels.length);
+    const presaison = saison.filter((m) => m.presaison).slice(0, manque);
+    const historique = [...officiels, ...presaison].sort((a, b) => (a.date < b.date ? 1 : -1));
+    const forme = [...officiels.slice(0, NB_MATCHS_FORME), ...presaison];
+
+    // L'effectif actuel, pour ne garder que les joueurs encore dans l'équipe
+    let effectif = null;
+    try {
+      const roster = await lire(`/roster/${abbrev}/current`, fetcher);
+      const ids = Object.values(roster).filter(Array.isArray).flat().map((j) => j.id).filter(Boolean);
+      if (ids.length) effectif = new Set(ids);
+    } catch (e) {
+      console.warn(`Effectif indisponible pour ${abbrev} : ${e.message}`);
+    }
 
     const feuilles = [];
     for (const m of forme) {
@@ -131,9 +148,9 @@ export async function construireDonnees(fetcher = fetch) {
 
     equipes[abbrev] = {
       historique,
-      joueurs: cumulerJoueurs(feuilles, abbrev),
+      joueurs: cumulerJoueurs(feuilles, abbrev, effectif),
     };
-    console.log(`✓ ${abbrev} : ${historique.length} matchs, ${feuilles.length} feuilles de match`);
+    console.log(`✓ ${abbrev} : ${officiels.length} matchs officiels + ${presaison.length} de présaison, effectif ${effectif ? effectif.size + " joueurs" : "non filtré"}`);
   }
 
   return {

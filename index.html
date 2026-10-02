@@ -118,6 +118,10 @@ nav.onglets button[aria-selected="true"] { color: var(--texte); border-bottom-co
 .forme .V { background: var(--victoire); }
 .forme .D { background: var(--defaite); }
 .forme .DP { background: var(--nul); }
+.forme .P { outline: 2px dashed var(--discret); outline-offset: 1px; opacity: .75; }
+.match-joueurs h3 { font-size: 20px; }
+.match-joueurs .entete { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.tag-eq { display: inline-block; min-width: 38px; font: 700 13px var(--police-titre); letter-spacing: .04em; color: var(--discret); }
 
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { text-align: left; font: 600 11px var(--police-texte); letter-spacing: .08em; text-transform: uppercase; color: var(--discret); padding: 6px 4px; border-bottom: 1px solid var(--ligne); }
@@ -142,7 +146,7 @@ footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--lig
   </div>
   <nav class="onglets" role="tablist">
     <button id="onglet-matchs" role="tab" aria-selected="true">Matchs du soir</button>
-    <button id="onglet-joueurs" role="tab" aria-selected="false">Joueurs en forme</button>
+    <button id="onglet-joueurs" role="tab" aria-selected="false">Joueurs par match</button>
   </nav>
 </header>
 
@@ -199,12 +203,13 @@ function formeEquipe(abbrev) {
     else if (m.prolongation) { points += POINTS_DEFAITE_PROLONG; dp++; }
     else d++;
   }
-  return { matchs, n: matchs.length, points, max: matchs.length * POINTS_VICTOIRE, diff: bp - bc, bp, bc, v, d, dp };
+  const nPresaison = matchs.filter((m) => m.presaison).length;
+  return { matchs, n: matchs.length, nPresaison, points, max: matchs.length * POINTS_VICTOIRE, diff: bp - bc, bp, bc, v, d, dp };
 }
 
 function bilanLieu(abbrev, aDomicile) {
   const e = D.equipes[abbrev];
-  const liste = e ? e.historique.filter((m) => m.domicile === aDomicile) : [];
+  const liste = e ? e.historique.filter((m) => m.domicile === aDomicile && !m.presaison) : [];
   const v = liste.filter((m) => m.victoire).length;
   const dp = liste.filter((m) => !m.victoire && m.prolongation).length;
   return { joues: liste.length, v, d: liste.length - v - dp, dp };
@@ -240,8 +245,8 @@ function pastilles(f) {
   return [...f.matchs].reverse().map((m) => {
     const cls = m.victoire ? "V" : m.prolongation ? "DP" : "D";
     const lettre = m.victoire ? "V" : m.prolongation ? "DP" : "D";
-    const titre = `${m.date} · ${m.domicile ? "vs" : "@"} ${m.adversaire} · ${m.butsPour}-${m.butsContre}${m.prolongation ? " (prol.)" : ""}`;
-    return `<span class="${cls}" title="${esc(titre)}">${lettre}</span>`;
+    const titre = `${m.presaison ? "Présaison · " : ""}${m.date} · ${m.domicile ? "vs" : "@"} ${m.adversaire} · ${m.butsPour}-${m.butsContre}${m.prolongation ? " (prol.)" : ""}`;
+    return `<span class="${cls}${m.presaison ? " P" : ""}" title="${esc(titre)}">${lettre}</span>`;
   }).join("");
 }
 
@@ -253,7 +258,7 @@ function vueMatchs() {
     return `<a class="carte-match" href="#match-${m.id}">
       <div class="affiche"><span>${esc(m.exterieur.abbrev)}</span><span class="at">@</span><span>${esc(m.domicile.abbrev)}</span></div>
       <div class="heure chiffres">${heureParis(m.debutUTC)}</div>
-      <div class="sous">${puceVerdict(v)}<span>${esc(m.exterieur.nom)} chez ${esc(m.domicile.nom)}</span></div>
+      <div class="sous">${puceVerdict(v)}<span>${esc(m.exterieur.nom)} chez ${esc(m.domicile.nom)}</span>${v.dom.nPresaison || v.ext.nPresaison ? `<span>· inclut la présaison</span>` : ""}</div>
     </a>`;
   }).join("");
   return `<div class="titre-section"><h2>Matchs du soir</h2><span class="etiquette">${D.matchs[0] ? dateParis(D.matchs[0].debutUTC) : ""}</span></div>
@@ -271,9 +276,10 @@ function blocForme(eq, f, lieu, b) {
       <tr><td>Bilan ${f.matchs.length} derniers (V-D-DP)</td><td class="n">${rec}</td></tr>
       <tr><td>Points pris</td><td class="n">${f.points} / ${f.max}</td></tr>
       <tr><td>Buts pour / contre</td><td class="n">${f.bp} / ${f.bc} (${signe(f.diff)})</td></tr>
-      <tr><td>${lieu === "dom" ? "À domicile" : "À l'extérieur"} cette saison</td><td class="n">${b.v}-${b.d}-${b.dp}</td></tr>
+      <tr><td>${lieu === "dom" ? "À domicile" : "À l'extérieur"} (matchs officiels)</td><td class="n">${b.joues ? `${b.v}-${b.d}-${b.dp}` : "—"}</td></tr>
     </tbody></table>
-    ${f.n < MIN_MATCHS_INDICATEUR ? `<div class="regle">Seulement ${f.n} match${f.n > 1 ? "s" : ""} joué${f.n > 1 ? "s" : ""} cette saison : à lire avec prudence.</div>` : ""}
+    ${f.nPresaison ? `<div class="regle">Dont ${f.nPresaison} match${f.nPresaison > 1 ? "s" : ""} de présaison (cases en pointillés) : alignements souvent remaniés, à lire avec prudence.</div>` : ""}
+    ${f.n < MIN_MATCHS_INDICATEUR ? `<div class="regle">Seulement ${f.n} match${f.n > 1 ? "s" : ""} joué${f.n > 1 ? "s" : ""} cette saison.</div>` : ""}
   </div>`;
 }
 
@@ -307,13 +313,14 @@ function vueMatch(id) {
   <section class="verdict">
     <span class="etiquette">Indicateur</span>
     <h3>${titre}</h3>
+    ${v.dom.nPresaison || v.ext.nPresaison ? `<div class="regle">Début de saison : calcul basé en partie sur la présaison (${esc(m.exterieur.abbrev)} : ${v.ext.nPresaison}/${v.ext.n}, ${esc(m.domicile.abbrev)} : ${v.dom.nPresaison}/${v.dom.n} matchs). Fiabilité réduite.</div>` : ""}
     ${v.insuffisant ? `<div class="regle">L'indicateur s'affiche dès que les deux équipes ont joué au moins ${MIN_MATCHS_INDICATEUR} matchs cette saison (${esc(m.exterieur.abbrev)} : ${v.ext.n}, ${esc(m.domicile.abbrev)} : ${v.dom.n}).</div>` : `<div>
       <div class="jauge" aria-label="Écart ${signe(v.ecart)}"><i style="left:${gauche}%;width:${largeur}%"></i></div>
       <div class="jauge-legende chiffres"><span>${esc(m.exterieur.abbrev)} ${signe(v.scoreExt)}</span><span>écart ${signe(v.ecart)}</span><span>${esc(m.domicile.abbrev)} ${signe(v.scoreDom)}</span></div>
     </div>`}
     <details class="regle"><summary>Comment c'est calculé</summary>
       <ul>
-        <li>Points sur les ${D.reglages?.nbMatchsForme || 5} derniers matchs de la saison en cours : victoire ${POINTS_VICTOIRE}, défaite en prolongation ${POINTS_DEFAITE_PROLONG}, défaite 0.</li>
+        <li>Points sur les ${D.reglages?.nbMatchsForme || 5} derniers matchs de la saison en cours (complétés par la présaison de cette année en début de saison) : victoire ${POINTS_VICTOIRE}, défaite en prolongation ${POINTS_DEFAITE_PROLONG}, défaite 0.</li>
         <li>+ ${String(POIDS_DIFF_BUTS).replace(".", ",")} par but de différence sur ces matchs.</li>
         <li>Si une équipe a joué moins de ${D.reglages?.nbMatchsForme || 5} matchs, on prend sa moyenne par match, ramenée sur ${D.reglages?.nbMatchsForme || 5}.</li>
         <li>+ ${BONUS_DOMICILE} pour l'équipe à domicile.</li>
@@ -336,25 +343,33 @@ function vueMatch(id) {
 
 // ---------- VUE : CLASSEMENT DES JOUEURS EN FORME ----------
 function vueJoueurs() {
-  const lignes = [];
-  for (const m of D.matchs) {
+  if (!D.matchs.length) return `<div class="vide">Pas de match ce soir.</div>`;
+  const N_PAR_MATCH = 6; // joueurs affichés par match
+  const sections = D.matchs.map((m) => {
+    const lignes = [];
     for (const eq of [m.exterieur, m.domicile]) {
-      for (const p of D.equipes[eq.abbrev]?.joueurs || []) lignes.push({ ...p, equipe: eq.abbrev, match: m });
+      for (const p of D.equipes[eq.abbrev]?.joueurs || []) lignes.push({ ...p, equipe: eq.abbrev });
     }
-  }
-  lignes.sort((a, b) => b.points - a.points || b.buts - a.buts || b.tirs - a.tirs);
-  if (!lignes.length) return `<div class="vide">Pas encore de joueurs à classer.</div>`;
+    lignes.sort((a, b) => b.points - a.points || b.buts - a.buts || b.tirs - a.tirs);
+    const corps = lignes.length
+      ? `<div class="defile"><table>
+          <thead><tr><th>Joueur</th><th class="n">MJ</th><th class="n">B</th><th class="n">A</th><th class="n">Pts</th><th class="n">Tirs</th></tr></thead>
+          <tbody>${lignes.slice(0, N_PAR_MATCH).map((p) => `<tr>
+            <td><span class="tag-eq">${esc(p.equipe)}</span>${esc(p.nom)} <span class="regle">${esc(p.poste)}</span></td>
+            <td class="n">${p.matchs}</td><td class="n">${p.buts}</td><td class="n">${p.passes}</td><td class="n"><strong>${p.points}</strong></td><td class="n">${p.tirs}</td>
+          </tr>`).join("")}</tbody></table></div>`
+      : `<div class="regle">Pas encore de données joueurs pour ce match.</div>`;
+    return `<section class="bloc match-joueurs">
+      <div class="entete">
+        <h3><button class="lien-match" data-aller="match-${m.id}">${esc(m.exterieur.abbrev)} @ ${esc(m.domicile.abbrev)}</button></h3>
+        <span class="etiquette chiffres">${heureParis(m.debutUTC)}</span>
+      </div>
+      ${corps}
+    </section>`;
+  }).join("");
   const n = D.reglages?.nbMatchsForme || 5;
-  return `<div class="titre-section"><h2>Joueurs en forme</h2><span class="etiquette">Équipes qui jouent ce soir · ${n} derniers matchs de la saison</span></div>
-  <div class="bloc" style="margin-top:12px"><div class="defile"><table>
-    <thead><tr><th class="n">#</th><th>Joueur</th><th>Match</th><th class="n">MJ</th><th class="n">B</th><th class="n">A</th><th class="n">Pts</th><th class="n">Tirs</th></tr></thead>
-    <tbody>${lignes.slice(0, 30).map((p, i) => `<tr>
-      <td class="n">${i + 1}</td>
-      <td>${esc(p.nom)} <span class="regle">${esc(p.equipe)} · ${esc(p.poste)}</span></td>
-      <td><button class="lien-match" data-aller="match-${p.match.id}">${esc(p.match.exterieur.abbrev)} @ ${esc(p.match.domicile.abbrev)}</button></td>
-      <td class="n">${p.matchs}</td><td class="n">${p.buts}</td><td class="n">${p.passes}</td><td class="n"><strong>${p.points}</strong></td><td class="n">${p.tirs}</td>
-    </tr>`).join("")}</tbody>
-  </table></div></div>`;
+  return `<div class="titre-section"><h2>Joueurs par match</h2><span class="etiquette">Les plus en forme · ${n} derniers matchs</span></div>
+  <div class="liste" style="margin-top:12px">${sections}</div>`;
 }
 
 // ---------- NAVIGATION ----------
