@@ -375,6 +375,50 @@ export function construireCompo(feuilles, matchs, abbrev) {
   };
 }
 
+// ============================================================
+//  7) LE CLASSEMENT SAISONNIER (top 30 aux points, saison régulière)
+// ============================================================
+const NB_CLASSEMENT = 30;
+
+export async function construireClassement(fetcher, saison) {
+  // Source principale : les statistiques détaillées de la NHL
+  try {
+    const tri = encodeURIComponent(JSON.stringify([
+      { property: "points", direction: "DESC" },
+      { property: "goals", direction: "DESC" },
+      { property: "gamesPlayed", direction: "ASC" },
+    ]));
+    const filtre = encodeURIComponent(`seasonId=${saison} and gameTypeId=2`);
+    const json = await lire(`https://api.nhle.com/stats/rest/fr/skater/summary?isAggregate=false&isGame=false&start=0&limit=${NB_CLASSEMENT}&sort=${tri}&cayenneExp=${filtre}`, fetcher);
+    const lignes = (json.data || []).map((j) => ({
+      nom: j.skaterFullName || "",
+      equipe: String(j.teamAbbrevs || "").split(",").pop().trim(), // dernière équipe si transfert
+      poste: j.positionCode || "",
+      mj: j.gamesPlayed ?? null,
+      buts: j.goals ?? null,
+      passes: j.assists ?? null,
+      points: j.points ?? null,
+      plusMoins: j.plusMinus ?? null,
+      tirs: j.shots ?? null,
+      pointsAN: j.ppPoints ?? null,
+    })).filter((j) => j.nom);
+    if (lignes.length) return { source: "stats", lignes };
+  } catch (e) {
+    console.log(`::warning::Stats détaillées indisponibles, repli sur les meneurs : ${e.message}`);
+  }
+  // Repli : la liste des meneurs aux points (moins de colonnes)
+  const json = await lire(`/skater-stats-leaders/current?categories=points&limit=${NB_CLASSEMENT}`, fetcher);
+  return {
+    source: "meneurs",
+    lignes: (json.points || []).map((j) => ({
+      nom: `${txt(j.firstName)} ${txt(j.lastName)}`.trim(),
+      equipe: j.teamAbbrev || "",
+      poste: j.position || "",
+      points: j.value ?? null,
+    })),
+  };
+}
+
 export async function construireDonnees(fetcher = fetch) {
   const calendrier = await lire("/schedule/now", fetcher);
   const soir = extraireMatchsDuSoir(calendrier);
@@ -452,10 +496,20 @@ export async function construireDonnees(fetcher = fetch) {
     console.log(`::warning::Liste des blessés indisponible : ${e.message}`);
   }
 
+  let classement = null;
+  try {
+    const saison = calendrier.gameWeek?.find((j) => j.games?.length)?.games?.[0]?.season;
+    classement = await construireClassement(fetcher, saison);
+    console.log(`✓ Classement saisonnier : ${classement.lignes.length} joueurs (${classement.source})`);
+  } catch (e) {
+    console.log(`::warning::Classement saisonnier indisponible : ${e.message}`);
+  }
+
   return {
     misAJour: new Date().toISOString(),
     recap,
     blesses,
+    classement,
     saisonEnCours: calendrier.gameWeek?.[0]?.games?.[0]?.season || null,
     dateDesMatchs: soir.date,
     reglages: { nbMatchsForme: NB_MATCHS_FORME, nbMatchsDomExt: NB_MATCHS_DOM_EXT },

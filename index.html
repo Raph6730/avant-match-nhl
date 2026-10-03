@@ -167,6 +167,14 @@ nav.onglets button:focus-visible { outline-offset: -3px; }
 .alignement p, .absents { margin: 2px 0 0; line-height: 1.55; }
 .absents { font-size: 14px; }
 .alignement .nom { white-space: nowrap; }
+.classement td { white-space: nowrap; vertical-align: top; }
+.classement td.joueur { white-space: normal; }
+.classement .nom-classement { display: block; font-weight: 600; }
+.ce-soir { font-size: 12px; margin-left: 2px; }
+@media (max-width: 520px) {
+  .classement .large { display: none; }
+  nav.onglets button { font-size: 14px; padding-inline: 8px; letter-spacing: .04em; }
+}
 .mini.rouge { background: transparent; color: var(--defaite); border: 1px solid currentColor; }
 .puce.grave { color: var(--defaite); border-color: currentColor; }
 .puce.incertain { color: var(--nul); border-color: currentColor; }
@@ -291,7 +299,7 @@ footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--lig
   <div class="onglets-int" role="tablist">
     <button id="onglet-nuit" role="tab" aria-selected="false">Cette nuit</button>
     <button id="onglet-matchs" role="tab" aria-selected="true">Matchs du soir</button>
-    <button id="onglet-joueurs" role="tab" aria-selected="false">Joueurs</button>
+    <button id="onglet-joueurs" role="tab" aria-selected="false">Classement saisonnier</button>
   </div>
 </nav>
 
@@ -646,33 +654,33 @@ function vueMatch(id) {
 
 // ---------- VUE : CLASSEMENT DES JOUEURS EN FORME ----------
 function vueJoueurs() {
-  if (!D.matchs.length) return `<div class="vide">Pas de match ce soir.</div>`;
-  const N_PAR_MATCH = 6; // joueurs affichés par match
-  const sections = avecPub(D.matchs.map((m) => {
-    const lignes = [];
-    for (const eq of [m.exterieur, m.domicile]) {
-      for (const p of D.equipes[eq.abbrev]?.joueurs || []) lignes.push({ ...p, equipe: eq.abbrev });
-    }
-    lignes.sort((a, b) => b.points - a.points || b.buts - a.buts || b.tirs - a.tirs);
-    const corps = lignes.length
-      ? `<div class="defile"><table>
-          <thead><tr><th>Joueur</th><th class="n">MJ</th><th class="n">B</th><th class="n">A</th><th class="n">Pts</th><th class="n">Tirs</th></tr></thead>
-          <tbody>${lignes.slice(0, N_PAR_MATCH).map((p) => `<tr>
-            <td><span class="tag-eq">${esc(p.equipe)}</span>${esc(p.nom)} <span class="regle">${esc(p.poste)}</span></td>
-            <td class="n">${p.matchs}</td><td class="n">${p.buts}</td><td class="n">${p.passes}</td><td class="n"><strong>${p.points}</strong></td><td class="n">${p.tirs}</td>
-          </tr>`).join("")}</tbody></table></div>`
-      : `<div class="regle">Pas encore de données joueurs pour ce match.</div>`;
-    return `<section class="bloc match-joueurs">
-      <div class="entete">
-        <h3><button class="lien-match" data-aller="match-${m.id}">${esc(m.exterieur.abbrev)} @ ${esc(m.domicile.abbrev)}</button></h3>
-        <span class="etiquette chiffres">${heureParis(m.debutUTC)}</span>
-      </div>
-      ${corps}
-    </section>`;
-  }));
-  const n = D.reglages?.nbMatchsForme || 5;
-  return `<div class="titre-section"><h2>Joueurs par match</h2><span class="etiquette">Les plus en forme · ${n} derniers matchs</span></div>
-  <div class="liste" style="margin-top:12px">${sections}</div>`;
+  const c = D.classement;
+  if (!c?.lignes?.length) return `<div class="titre-section"><h2>Classement saisonnier</h2></div><div class="vide" style="margin-top:12px">Le classement n'est pas encore disponible. Il se met à jour à chaque passage du robot.</div>`;
+  // Les équipes qui jouent ce soir, pour repérer leurs joueurs
+  const ceSoir = new Map();
+  for (const m of D.matchs) { ceSoir.set(m.exterieur.abbrev, m); ceSoir.set(m.domicile.abbrev, m); }
+  const complet = c.source === "stats";
+  const signeNb = (n) => (n == null ? "—" : n > 0 ? "+" + n : String(n));
+  const lignes = c.lignes.map((j, i) => {
+    const m = ceSoir.get(j.equipe);
+    return `<tr>
+      <td class="n">${i + 1}</td>
+      <td class="joueur"><span class="nom-classement">${esc(j.nom)}</span>
+        <span class="regle">${esc(j.equipe)} · ${esc(j.poste)}</span>${m ? ` <button class="lien-match ce-soir" data-aller="match-${m.id}">joue ce soir</button>` : ""}</td>
+      ${complet ? `<td class="n">${j.mj}</td><td class="n">${j.buts}</td><td class="n">${j.passes}</td>` : ""}
+      <td class="n"><strong>${j.points ?? "—"}</strong></td>
+      ${complet ? `<td class="n large">${signeNb(j.plusMoins)}</td><td class="n large">${j.tirs ?? "—"}</td>` : ""}
+    </tr>`;
+  }).join("");
+  const debut = complet && Math.max(...c.lignes.map((j) => j.mj || 0)) < 10;
+  return `<div class="titre-section"><h2>Classement saisonnier</h2><span class="etiquette">Top ${c.lignes.length} aux points · saison régulière</span></div>
+  ${debut ? `<div class="regle" style="margin-top:4px">Début de saison : le classement va beaucoup bouger pendant les premières semaines.</div>` : ""}
+  <div class="bloc classement" style="margin-top:12px"><div class="defile"><table class="chiffres">
+    <thead><tr><th class="n">#</th><th>Joueur</th>${complet ? `<th class="n">MJ</th><th class="n">B</th><th class="n">A</th>` : ""}<th class="n">Pts</th>${complet ? `<th class="n large">+/-</th><th class="n large">Tirs</th>` : ""}</tr></thead>
+    <tbody>${lignes}</tbody>
+  </table></div></div>
+  <div class="regle" style="margin-top:6px">MJ : matchs joués · B : buts · A : passes · Pts : points · +/- : différentiel · « joue ce soir » : touche pour voir l'analyse du match.</div>
+  ${emplacementPub()}`;
 }
 
 // ---------- VUE : RÉCAP DE LA NUIT ----------
