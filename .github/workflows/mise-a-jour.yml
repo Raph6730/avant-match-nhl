@@ -55,7 +55,7 @@ jobs:
       - name: Rassembler le site (page + données)
         run: |
           mkdir -p site
-          cp index.html data.json confidentialite.html mentions-legales.html site/
+          cp index.html data.json confidentialite.html mentions-legales.html manifest.webmanifest site/
           cp -r polices images site/
           # ads.txt (vérification AdSense) s'il existe
           [ -f ads.txt ] && cp ads.txt site/ || true
