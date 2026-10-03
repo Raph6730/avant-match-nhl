@@ -6,7 +6,23 @@
 <title>Avant-Match NHL</title>
 <!-- Compteur de visites GoatCounter (code fourni par GoatCounter) -->
 <script data-goatcounter="https://raph6730.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
-<meta name="description" content="Les matchs NHL du soir analysés pour préparer tes paris : forme, domicile/extérieur, joueurs en forme.">
+<meta name="description" content="Les matchs NHL de la nuit en résumé et ceux du soir en analyse : forme des équipes, repos, buts par match, joueurs en forme. En français.">
+<!-- Icône d'onglet et d'écran d'accueil -->
+<link rel="icon" href="images/icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="images/icone-180.png">
+<meta name="theme-color" content="#0a0e13">
+<!-- Aperçu quand le lien est partagé (Discord, WhatsApp, X…).
+     Si l'adresse du site change, remplace https://raph6730.github.io/avant-match-nhl/ ci-dessous. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Avant-Match NHL">
+<meta property="og:title" content="Avant-Match NHL">
+<meta property="og:description" content="La nuit en résumé, les matchs du soir en analyse. Forme, repos, buts par match, joueurs en forme.">
+<meta property="og:url" content="https://raph6730.github.io/avant-match-nhl/">
+<meta property="og:image" content="https://raph6730.github.io/avant-match-nhl/images/apercu-partage.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="fr_FR">
+<meta name="twitter:card" content="summary_large_image">
 <style>
 /* Polices hébergées sur le site (aucune connexion à Google Fonts) */
 @font-face { font-family: "Barlow Condensed"; font-weight: 500; font-style: normal; font-display: swap; src: url("polices/barlow-condensed-latin-500-normal.woff2") format("woff2"); }
@@ -132,6 +148,10 @@ nav.onglets button:focus-visible { outline-offset: -3px; }
 .puce { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--ligne); }
 .puce.avantage { background: var(--accent-doux); color: var(--accent); border-color: transparent; }
 .puce.equilibre { color: var(--discret); }
+.puce.fatigue { color: var(--defaite); border-color: currentColor; }
+.alerte { color: var(--defaite); }
+.tuile.petite { font-size: 14px; min-width: 40px; padding: 4px 6px 3px; }
+.contexte td:first-child { color: var(--discret); }
 
 /* Page match */
 .retour { background: none; border: 0; color: var(--accent); font: 600 14px var(--police-texte); padding: 0; cursor: pointer; justify-self: start; }
@@ -372,6 +392,55 @@ function calculerVerdict(match) {
   return { dom, ext, scoreDom, scoreExt, ecart, favori, insuffisant };
 }
 
+// ---------- CONTEXTE : REPOS ET BUTS ----------
+const LIGNE_BUTS = 5.5; // repère des paris « plus / moins de buts »
+
+// Jours de repos complets avant le match (0 = a joué la veille : back-to-back)
+function joursRepos(abbrev) {
+  const dernier = D.equipes[abbrev]?.historique?.[0];
+  if (!dernier || !D.dateDesMatchs) return null;
+  const jours = Math.round((Date.parse(D.dateDesMatchs) - Date.parse(dernier.date)) / 864e5) - 1;
+  return jours >= 0 ? jours : null;
+}
+const texteRepos = (j) => (j == null ? "—" : j === 0 ? "Back-to-back" : `${j} jour${j > 1 ? "s" : ""}`);
+
+function statsButs(f) {
+  if (!f.n) return null;
+  const totaux = f.matchs.map((m) => m.butsPour + m.butsContre);
+  return {
+    marques: f.bp / f.n,
+    encaisses: f.bc / f.n,
+    total: (f.bp + f.bc) / f.n,
+    auDessus: totaux.filter((t) => t > LIGNE_BUTS).length,
+  };
+}
+const dec = (x) => (x == null ? "—" : x.toFixed(1).replace(".", ","));
+
+function blocContexte(m, v) {
+  const e = m.exterieur.abbrev, d = m.domicile.abbrev;
+  const re = joursRepos(e), rd = joursRepos(d);
+  const be = statsButs(v.ext), bd = statsButs(v.dom);
+  const cellRepos = (j) => `<td class="n">${j === 0 ? `<strong class="alerte">${texteRepos(j)}</strong>` : texteRepos(j)}</td>`;
+  const ligne = (lib, fe, fd) => `<tr><td>${lib}</td><td class="n">${fe}</td><td class="n">${fd}</td></tr>`;
+  const moyenne = be && bd ? (be.total + bd.total) / 2 : null;
+  const fatigue = [re === 0 ? e : null, rd === 0 ? d : null].filter(Boolean);
+  return `<section class="bloc contexte">
+    <h3>Contexte du match</h3>
+    <div class="defile"><table class="chiffres">
+      <thead><tr><th></th><th class="n"><span class="tuile petite">${esc(e)}</span></th><th class="n"><span class="tuile petite">${esc(d)}</span></th></tr></thead>
+      <tbody>
+        <tr><td>Repos avant le match</td>${cellRepos(re)}${cellRepos(rd)}</tr>
+        ${ligne("Buts marqués / match", dec(be?.marques), dec(bd?.marques))}
+        ${ligne("Buts encaissés / match", dec(be?.encaisses), dec(bd?.encaisses))}
+        ${ligne("Total de buts / match", dec(be?.total), dec(bd?.total))}
+        ${ligne(`Matchs à plus de ${String(LIGNE_BUTS).replace(".", ",")} buts`, be ? `${be.auDessus}/${v.ext.n}` : "—", bd ? `${bd.auDessus}/${v.dom.n}` : "—")}
+      </tbody>
+    </table></div>
+    ${moyenne != null ? `<div class="regle">Moyenne des deux équipes : <strong>${dec(moyenne)} buts par match</strong> sur leurs ${D.reglages?.nbMatchsForme || 5} derniers matchs (repère des paris : ${String(LIGNE_BUTS).replace(".", ",")}).</div>` : ""}
+    ${fatigue.length ? `<div class="regle"><strong class="alerte">Fatigue :</strong> ${fatigue.join(" et ")} ${fatigue.length > 1 ? "ont" : "a"} joué la veille.</div>` : ""}
+  </section>`;
+}
+
 function puceVerdict(v) {
   if (v.insuffisant) return `<span class="puce equilibre">Trop tôt pour juger</span>`;
   return v.favori
@@ -397,7 +466,7 @@ function vueMatchs() {
     return `<a class="carte-match" href="#match-${m.id}">
       <div class="affiche"><span class="tuile">${esc(m.exterieur.abbrev)}</span><span class="at">@</span><span class="tuile">${esc(m.domicile.abbrev)}</span></div>
       <div class="heure chiffres">${heureParis(m.debutUTC)}</div>
-      <div class="sous">${puceVerdict(v)}<span>${esc(m.exterieur.nom)} chez ${esc(m.domicile.nom)}</span>${v.dom.nPresaison || v.ext.nPresaison ? `<span>· inclut la présaison</span>` : ""}</div>
+      <div class="sous">${puceVerdict(v)}<span>${esc(m.exterieur.nom)} chez ${esc(m.domicile.nom)}</span>${[m.exterieur.abbrev, m.domicile.abbrev].filter((a) => joursRepos(a) === 0).map((a) => `<span class="puce fatigue">${esc(a)} a joué hier</span>`).join("")}${v.dom.nPresaison || v.ext.nPresaison ? `<span>· inclut la présaison</span>` : ""}</div>
     </a>`;
   }));
   return `<div class="titre-section"><h2>Matchs du soir</h2><span class="etiquette">${D.matchs[0] ? dateParis(D.matchs[0].debutUTC) : ""}</span></div>
@@ -469,6 +538,8 @@ function vueMatch(id) {
       Ne tient pas compte des gardiens titulaires ni des blessés.
     </details>
   </section>
+
+  ${blocContexte(m, v)}
 
   <div class="grille-2">
     ${blocForme(m.exterieur, v.ext, "ext", bilanLieu(m.exterieur.abbrev, false))}

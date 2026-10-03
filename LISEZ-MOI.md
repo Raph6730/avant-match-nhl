@@ -36,6 +36,7 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 
 - En début de saison, la forme est complétée par les matchs de présaison de l'année en cours (signalés en pointillés). Seuls les joueurs de l'effectif actuel sont affichés.
 - Pas de gardiens titulaires probables, pas de blessés, pas de cotes, pas de vidéos des buts.
+- « Repos » compte les jours depuis le dernier match joué ; « Back-to-back » = l'équipe a joué la veille.
 - Le récap de la nuit montre les matchs de la veille (heure de New York) ; GitHub peut lancer le robot avec 10 à 30 minutes de retard.
 - Saison en cours uniquement : tant qu'une équipe a joué moins de 3 matchs, l'indicateur affiche « Trop tôt pour juger ».
 - Source NHL non officielle : elle peut changer sans prévenir.
