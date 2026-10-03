@@ -1,7 +1,7 @@
 # ============================================================
 #  LE PLANNING DU ROBOT
 # ------------------------------------------------------------
-#  Ce fichier dit à GitHub : « deux fois par jour, lance le
+#  Ce fichier dit à GitHub : « trois fois par jour, lance le
 #  robot, puis mets le site à jour avec les nouvelles données ».
 #
 #  Il se déclenche aussi quand tu modifies index.html
@@ -13,26 +13,29 @@ name: Mise à jour du site
 
 on:
   schedule:
-    # Horaires en heure UTC (Paris = UTC+2 l'été, UTC+1 l'hiver :
-    # à partir du 25 octobre, chaque passage a lieu une heure plus tôt à Paris)
-    # 05:07 UTC ≈ 7h07 à Paris (récap de la nuit)
-    # 06:47 UTC ≈ 8h47 à Paris (rattrape les matchs finis tard)
-    # 14:47 UTC ≈ 16h47 à Paris (avant les matchs du soir)
-    - cron: "7 5 * * *"
-    - cron: "47 6 * * *"
-    - cron: "47 14 * * *"
+    # GitHub compte en heure UTC et ne connaît pas l'heure d'été.
+    # On programme donc les horaires d'été ET d'hiver, et la première
+    # étape ne laisse passer que ceux qui tombent juste à Paris.
+    # Résultat : 7h07, 8h47 et 16h47 à Paris, toute l'année.
+    #   Été (UTC+2)       Hiver (UTC+1)
+    - cron: "7 5 * * *"   # 7h07 été  → récap de la nuit
+    - cron: "7 6 * * *"   # 7h07 hiver
+    - cron: "47 6 * * *"  # 8h47 été  → rattrape les matchs finis tard
+    - cron: "47 7 * * *"  # 8h47 hiver
+    - cron: "47 14 * * *" # 16h47 été → avant les matchs du soir
+    - cron: "47 15 * * *" # 16h47 hiver
   push:
     branches: [main]
   workflow_dispatch: {}
 
 permissions:
-  contents: read
+  contents: write   # pour laisser une trace mensuelle (voir la dernière étape)
   pages: write
   id-token: write
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # une mise à jour attend la précédente au lieu de l'annuler
 
 jobs:
   construire-et-publier:
@@ -41,18 +44,38 @@ jobs:
       name: github-pages
       url: ${{ steps.publication.outputs.page_url }}
     steps:
+      - name: Vérifier l'horaire (heure d'été ou d'hiver à Paris)
+        id: horaire
+        run: |
+          DECALAGE=$(TZ=Europe/Paris date +%z)
+          case "${{ github.event.schedule }}" in
+            "7 5 * * *"|"47 6 * * *"|"47 14 * * *") SAISON=ete ;;
+            "7 6 * * *"|"47 7 * * *"|"47 15 * * *") SAISON=hiver ;;
+            *) SAISON=toujours ;;   # lancement manuel ou modification du site
+          esac
+          if { [ "$SAISON" = ete ] && [ "$DECALAGE" != "+0200" ]; } || { [ "$SAISON" = hiver ] && [ "$DECALAGE" != "+0100" ]; }; then
+            echo "Horaire de l'autre saison : on ne fait rien cette fois."
+            echo "lancer=non" >> "$GITHUB_OUTPUT"
+          else
+            echo "lancer=oui" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Récupérer les fichiers du projet
+        if: steps.horaire.outputs.lancer == 'oui'
         uses: actions/checkout@v4
 
       - name: Préparer Node (le moteur qui fait tourner le robot)
+        if: steps.horaire.outputs.lancer == 'oui'
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
       - name: Lancer le robot NHL
+        if: steps.horaire.outputs.lancer == 'oui'
         run: node robot/recuperer-donnees.mjs
 
       - name: Rassembler le site (page + données)
+        if: steps.horaire.outputs.lancer == 'oui'
         run: |
           mkdir -p site
           cp index.html data.json confidentialite.html mentions-legales.html manifest.webmanifest site/
@@ -61,10 +84,28 @@ jobs:
           [ -f ads.txt ] && cp ads.txt site/ || true
 
       - name: Préparer la publication
+        if: steps.horaire.outputs.lancer == 'oui'
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
       - name: Publier sur GitHub Pages
+        if: steps.horaire.outputs.lancer == 'oui'
         id: publication
         uses: actions/deploy-pages@v4
+
+      # GitHub coupe les tâches programmées d'un dépôt resté 60 jours sans modification.
+      # Le robot laisse donc une trace (un « commit » vide) si rien n'a bougé depuis 30 jours.
+      - name: Garder le robot actif
+        if: github.event_name == 'schedule' && steps.horaire.outputs.lancer == 'oui'
+        run: |
+          DERNIER=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - DERNIER )) -gt $(( 30 * 86400 )) ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Garder le robot actif"
+            git push
+            echo "Trace laissée."
+          else
+            echo "Dépôt actif récemment, rien à faire."
+          fi

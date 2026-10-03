@@ -10,7 +10,7 @@ Ton outil d'analyse des matchs NHL du soir, pour parieurs.
 | `robot/recuperer-donnees.mjs` | Le robot qui va chercher les données NHL | Rarement : seulement si la NHL change ses données |
 | `confidentialite.html`, `mentions-legales.html` | Les pages légales (liées en bas du site) | Si tes pratiques changent |
 | `polices/` | Les polices du site, hébergées ici plutôt que chez Google | Non |
-| `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot vers 7h, 8h47 et 16h47 (heure de Paris, une heure plus tôt en hiver) et met le site à jour | Presque jamais |
+| `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot à 7h07, 8h47 et 16h47 (heure de Paris, été comme hiver) et met le site à jour | Presque jamais |
 
 ## Mettre le site en ligne (une seule fois, ~15 minutes)
 
@@ -30,7 +30,7 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 
 - **Le site affiche « Impossible de charger les données »** : onglet Actions → regarde si la dernière exécution est rouge. Clique dessus pour lire l'erreur.
 - **Une croix rouge dans Actions** : souvent la NHL a modifié sa source de données. Copie le message d'erreur et demande de l'aide.
-- **GitHub désactive le planning après 60 jours sans activité sur le dépôt.** Si les données ne bougent plus, onglet Actions → réactive le workflow (un bandeau jaune le propose).
+- **GitHub coupe les tâches programmées après 60 jours sans activité.** Le robot laisse une trace tous les 30 jours pour l'éviter. Si les données ne bougent plus malgré tout, onglet Actions → réactive le workflow (un bandeau jaune le propose).
 
 ## Limites connues (volontaires pour le test)
 
