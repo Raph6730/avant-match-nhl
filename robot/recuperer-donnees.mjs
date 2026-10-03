@@ -177,6 +177,30 @@ export function lireEtoiles(landing) {
     .sort((a, b) => a.rang - b.rang);
 }
 
+// Les gardiens qui ont joué, lus dans la feuille de match
+export function lireGardiens(feuille) {
+  const res = [];
+  for (const cote of ["awayTeam", "homeTeam"]) {
+    const equipe = feuille?.[cote]?.abbrev || "";
+    for (const g of feuille?.playerByGameStats?.[cote]?.goalies || []) {
+      if (!g.toi || g.toi === "00:00") continue; // n'est pas entré sur la glace
+      const tirs = g.shotsAgainst ?? null;
+      const arrets = g.saves ?? (tirs != null && g.goalsAgainst != null ? tirs - g.goalsAgainst : null);
+      res.push({
+        equipe,
+        nom: txt(g.name),
+        arrets,
+        tirs,
+        buts: g.goalsAgainst ?? null,
+        pct: g.savePctg ?? (tirs ? arrets / tirs : null),
+        temps: g.toi,
+        decision: g.decision || "", // W = victoire, L = défaite, O = défaite en prolongation
+      });
+    }
+  }
+  return res;
+}
+
 export async function construireRecap(fetcher, date = dateDeLaNuit()) {
   const jour = await lire(`/score/${date}`, fetcher);
   const matchs = [];
@@ -186,11 +210,17 @@ export async function construireRecap(fetcher, date = dateDeLaNuit()) {
     const termine = ["OFF", "FINAL"].includes(g.gameState);
     const fin = g.gameOutcome?.lastPeriodType || g.periodDescriptor?.periodType || "REG";
     let etoiles = [];
+    let gardiens = [];
     if (termine) {
       try {
         etoiles = lireEtoiles(await lire(`/gamecenter/${g.id}/landing`, fetcher));
       } catch (e) {
         console.warn(`Étoiles indisponibles pour ${g.id} : ${e.message}`);
+      }
+      try {
+        gardiens = lireGardiens(await lire(`/gamecenter/${g.id}/boxscore`, fetcher));
+      } catch (e) {
+        console.warn(`Gardiens indisponibles pour ${g.id} : ${e.message}`);
       }
     }
     matchs.push({
@@ -202,6 +232,7 @@ export async function construireRecap(fetcher, date = dateDeLaNuit()) {
       exterieur: { abbrev: ext.abbrev, nom: txt(ext.name) || txt(ext.commonName), score: ext.score ?? null, tirs: ext.sog ?? null },
       buts: (g.goals || []).map((b) => lireBut(b, dom.abbrev, ext.abbrev)),
       etoiles,
+      gardiens,
     });
   }
   // Contrôle : les clés du premier but reçu, pour vérifier le format NHL

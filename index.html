@@ -150,6 +150,9 @@ footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--lig
 .mini { font: 700 10px var(--police-texte); letter-spacing: .06em; padding: 1px 5px; border-radius: 4px; background: var(--accent-doux); color: var(--accent); margin-left: 4px; vertical-align: 1px; }
 .etoiles { display: grid; gap: 4px; font-size: 14px; padding-top: 8px; border-top: 1px solid var(--ligne); }
 .etoiles b { color: var(--accent); font-family: var(--police-titre); }
+.gardiens { padding-top: 8px; border-top: 1px solid var(--ligne); display: grid; gap: 4px; }
+.gardiens table { font-size: 14px; }
+.gardiens td, .gardiens th { padding: 5px 4px; }
 .vide { background: var(--surface); border: 1px dashed var(--ligne); border-radius: 10px; padding: 24px; text-align: center; color: var(--discret); }
 </style>
 
@@ -436,7 +439,24 @@ function blocNuit(m) {
     </div>
     <div>${listeButs}</div>
     ${etoiles}
+    ${blocGardiens(m)}
   </section>`;
+}
+
+function blocGardiens(m) {
+  if (!m.gardiens?.length) return "";
+  const pct = (v) => (v == null ? "—" : (v * 100).toFixed(1).replace(".", ",") + " %");
+  const DEC = { W: "V", L: "D", O: "DP" };
+  // équipe à l'extérieur d'abord, comme sur la ligne de score
+  const tri = [...m.gardiens].sort((a, b) => (a.equipe === m.exterieur.abbrev ? 0 : 1) - (b.equipe === m.exterieur.abbrev ? 0 : 1));
+  return `<div class="gardiens"><span class="etiquette">Gardiens</span><div class="defile"><table>
+    <thead><tr><th>Gardien</th><th class="n">Arrêts</th><th class="n">% arrêts</th><th class="n">Temps</th></tr></thead>
+    <tbody>${tri.map((g) => `<tr>
+      <td><span class="tag-eq">${esc(g.equipe)}</span>${esc(g.nom)}${DEC[g.decision] ? ` <span class="regle">${DEC[g.decision]}</span>` : ""}${g.tirs && g.buts === 0 && g.temps >= "59:00" ? `<span class="mini" title="Aucun but encaissé">BL</span>` : ""}</td>
+      <td class="n">${g.arrets ?? "—"}/${g.tirs ?? "—"}</td>
+      <td class="n"><strong>${pct(g.pct)}</strong></td>
+      <td class="n">${esc(g.temps)}</td>
+    </tr>`).join("")}</tbody></table></div></div>`;
 }
 
 function vueNuit() {
@@ -447,7 +467,7 @@ function vueNuit() {
   if (!r.matchs.length) return tete + `<div class="vide" style="margin-top:12px">Pas de match NHL cette nuit.</div>`;
   // matchs terminés d'abord
   const tri = [...r.matchs].sort((a, b) => (a.etat === "termine" ? 0 : 1) - (b.etat === "termine" ? 0 : 1));
-  return tete + `<div class="regle" style="margin-top:4px">AN : avantage numérique · IN : infériorité numérique · FV : filet vide · (chiffre) : total de la saison</div>
+  return tete + `<div class="regle" style="margin-top:4px">AN : avantage numérique · IN : infériorité numérique · FV : filet vide · BL : blanchissage · (chiffre) : total de la saison</div>
     <div class="liste" style="margin-top:12px">${tri.map(blocNuit).join("")}</div>`;
 }
 
