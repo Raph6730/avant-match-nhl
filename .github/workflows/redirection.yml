@@ -1,0 +1,27 @@
+# Publie uniquement la page de redirection vers https://avantmatch.github.io
+name: Redirection vers la nouvelle adresse
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publication.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Préparer les pages de redirection
+        run: |
+          mkdir -p site
+          for page in index.html 404.html confidentialite.html mentions-legales.html; do cp redirection.html site/$page; done
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: publication
+        uses: actions/deploy-pages@v4
