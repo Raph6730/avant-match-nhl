@@ -8,7 +8,7 @@ Ton outil d'analyse des matchs NHL du soir, pour parieurs.
 |---|---|---|
 | `index.html` | La page que voient les visiteurs, et le calcul de l'indicateur | Oui : textes, couleurs (en haut, dans `:root`), règles de l'indicateur (début du script, « RÉGLAGES DE L'INDICATEUR ») |
 | `robot/recuperer-donnees.mjs` | Le robot qui va chercher les données NHL | Rarement : seulement si la NHL change ses données |
-| `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot vers 8h47 et 16h47 (heure de Paris) et met le site à jour | Presque jamais |
+| `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot vers 7h, 8h47 et 16h47 (heure de Paris, une heure plus tôt en hiver) et met le site à jour | Presque jamais |
 
 ## Mettre le site en ligne (une seule fois, ~15 minutes)
 
@@ -33,6 +33,7 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 ## Limites connues (volontaires pour le test)
 
 - En début de saison, la forme est complétée par les matchs de présaison de l'année en cours (signalés en pointillés). Seuls les joueurs de l'effectif actuel sont affichés.
-- Pas de gardiens titulaires probables, pas de blessés, pas de cotes.
+- Pas de gardiens titulaires probables, pas de blessés, pas de cotes, pas de vidéos des buts.
+- Le récap de la nuit montre les matchs de la veille (heure de New York) ; GitHub peut lancer le robot avec 10 à 30 minutes de retard.
 - Saison en cours uniquement : tant qu'une équipe a joué moins de 3 matchs, l'indicateur affiche « Trop tôt pour juger ».
 - Source NHL non officielle : elle peut changer sans prévenir.

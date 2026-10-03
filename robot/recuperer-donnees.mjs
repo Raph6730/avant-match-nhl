@@ -122,6 +122,93 @@ export function cumulerJoueurs(feuilles, abbrev, effectif = null) {
     .slice(0, NB_JOUEURS_GARDES);
 }
 
+// ============================================================
+//  4) LE RÉCAP DE LA NUIT (scores, buteurs, passeurs, étoiles)
+// ============================================================
+
+// Les textes NHL arrivent parfois en simple texte, parfois en { default: "..." }
+const txt = (v) => (typeof v === "string" ? v : v?.fr || v?.default || "");
+
+// La "nuit" en France = les matchs de la veille, heure de New York
+export function dateDeLaNuit(maintenant = new Date()) {
+  const ny = new Date(maintenant.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  ny.setDate(ny.getDate() - 1);
+  const z = (n) => String(n).padStart(2, "0");
+  return `${ny.getFullYear()}-${z(ny.getMonth() + 1)}-${z(ny.getDate())}`;
+}
+
+const FORCE = { pp: "AN", sh: "IN", ev: "" }; // avantage / infériorité numérique
+
+export function lireBut(b, abbrevDom, abbrevExt) {
+  const periode = b.periodDescriptor?.number ?? b.period ?? null;
+  const typePeriode = b.periodDescriptor?.periodType || (periode === 4 ? "OT" : periode >= 5 ? "SO" : "REG");
+  const nom = txt(b.name) || `${txt(b.firstName)} ${txt(b.lastName)}`.trim();
+  const equipe = txt(b.teamAbbrev) || (b.isHome === true ? abbrevDom : b.isHome === false ? abbrevExt : "");
+  const force = String(b.strength || b.situation || "").toLowerCase();
+  return {
+    periode,
+    typePeriode,
+    temps: b.timeInPeriod || "",
+    equipe,
+    buteur: nom,
+    totalSaison: b.goalsToDate ?? null,
+    passes: (b.assists || []).map((a) => ({
+      nom: txt(a.name) || `${txt(a.firstName)} ${txt(a.lastName)}`.trim(),
+      total: a.assistsToDate ?? null,
+    })),
+    situation: [FORCE[force] || "", /empty/i.test(b.goalModifier || "") ? "FV" : ""].filter(Boolean).join(" "),
+    scoreExt: b.awayScore ?? null,
+    scoreDom: b.homeScore ?? null,
+  };
+}
+
+export function lireEtoiles(landing) {
+  const etoiles = landing?.summary?.threeStars || [];
+  return etoiles
+    .map((e) => ({
+      rang: e.star,
+      nom: txt(e.name) || `${txt(e.firstName)} ${txt(e.lastName)}`.trim(),
+      equipe: txt(e.teamAbbrev),
+      poste: e.position || "",
+      buts: e.goals ?? null,
+      passes: e.assists ?? null,
+    }))
+    .filter((e) => e.nom)
+    .sort((a, b) => a.rang - b.rang);
+}
+
+export async function construireRecap(fetcher, date = dateDeLaNuit()) {
+  const jour = await lire(`/score/${date}`, fetcher);
+  const matchs = [];
+  for (const g of jour.games || []) {
+    if (![1, 2, 3].includes(g.gameType)) continue;
+    const dom = g.homeTeam, ext = g.awayTeam;
+    const termine = ["OFF", "FINAL"].includes(g.gameState);
+    const fin = g.gameOutcome?.lastPeriodType || g.periodDescriptor?.periodType || "REG";
+    let etoiles = [];
+    if (termine) {
+      try {
+        etoiles = lireEtoiles(await lire(`/gamecenter/${g.id}/landing`, fetcher));
+      } catch (e) {
+        console.warn(`Étoiles indisponibles pour ${g.id} : ${e.message}`);
+      }
+    }
+    matchs.push({
+      id: g.id,
+      presaison: g.gameType === 1,
+      etat: termine ? "termine" : ["LIVE", "CRIT"].includes(g.gameState) ? "en-cours" : "a-venir",
+      fin, // REG, OT (prolongation) ou SO (tirs au but)
+      domicile: { abbrev: dom.abbrev, nom: txt(dom.name) || txt(dom.commonName), score: dom.score ?? null, tirs: dom.sog ?? null },
+      exterieur: { abbrev: ext.abbrev, nom: txt(ext.name) || txt(ext.commonName), score: ext.score ?? null, tirs: ext.sog ?? null },
+      buts: (g.goals || []).map((b) => lireBut(b, dom.abbrev, ext.abbrev)),
+      etoiles,
+    });
+  }
+  // Contrôle : les clés du premier but reçu, pour vérifier le format NHL
+  const premier = (jour.games || []).find((x) => x.goals?.length)?.goals?.[0];
+  return { date, matchs, controle: premier ? Object.keys(premier) : [] };
+}
+
 export async function construireDonnees(fetcher = fetch) {
   const calendrier = await lire("/schedule/now", fetcher);
   const soir = extraireMatchsDuSoir(calendrier);
@@ -166,8 +253,18 @@ export async function construireDonnees(fetcher = fetch) {
     console.log(`✓ ${abbrev} : ${officiels.length} matchs officiels + ${presaison.length} de présaison, effectif ${effectif ? effectif.size + " joueurs" : "non filtré"}`);
   }
 
+  // Le récap ne doit jamais empêcher le reste du site de se mettre à jour
+  let recap = null;
+  try {
+    recap = await construireRecap(fetcher);
+    console.log(`✓ Récap de la nuit (${recap.date}) : ${recap.matchs.length} matchs`);
+  } catch (e) {
+    console.log(`::warning::Récap de la nuit indisponible : ${e.message}`);
+  }
+
   return {
     misAJour: new Date().toISOString(),
+    recap,
     saisonEnCours: calendrier.gameWeek?.[0]?.games?.[0]?.season || null,
     dateDesMatchs: soir.date,
     reglages: { nbMatchsForme: NB_MATCHS_FORME, nbMatchsDomExt: NB_MATCHS_DOM_EXT },

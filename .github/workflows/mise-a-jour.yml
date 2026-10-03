@@ -13,9 +13,12 @@ name: Mise à jour du site
 
 on:
   schedule:
-    # Horaires en heure UTC (Paris = UTC+2 l'été, UTC+1 l'hiver)
-    # 06:47 UTC ≈ 8h47 à Paris (résultats de la nuit)
+    # Horaires en heure UTC (Paris = UTC+2 l'été, UTC+1 l'hiver :
+    # à partir du 25 octobre, chaque passage a lieu une heure plus tôt à Paris)
+    # 05:07 UTC ≈ 7h07 à Paris (récap de la nuit)
+    # 06:47 UTC ≈ 8h47 à Paris (rattrape les matchs finis tard)
     # 14:47 UTC ≈ 16h47 à Paris (avant les matchs du soir)
+    - cron: "7 5 * * *"
     - cron: "47 6 * * *"
     - cron: "47 14 * * *"
   push:

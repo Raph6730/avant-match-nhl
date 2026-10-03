@@ -62,10 +62,10 @@ header.tete {
 .marque { font-family: var(--police-titre); font-weight: 700; font-size: 26px; letter-spacing: .02em; text-transform: uppercase; }
 .marque span { color: var(--accent); }
 .maj { color: var(--discret); font-size: 13px; }
-nav.onglets { max-width: 720px; margin: 10px auto 0; display: flex; gap: 4px; }
+nav.onglets { max-width: 720px; margin: 10px auto 0; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 nav.onglets button {
   font: 600 15px var(--police-titre); letter-spacing: .06em; text-transform: uppercase;
-  background: none; border: 0; color: var(--discret); padding: 8px 12px 10px; cursor: pointer;
+  background: none; border: 0; color: var(--discret); padding: 8px 10px 10px; cursor: pointer; white-space: nowrap;
   border-bottom: 3px solid transparent;
 }
 nav.onglets button[aria-selected="true"] { color: var(--texte); border-bottom-color: var(--accent); }
@@ -134,6 +134,22 @@ td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
 .regle { font-size: 13px; color: var(--discret); }
 .regle ul { margin: 6px 0 0; padding-left: 18px; }
 footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--ligne); padding-top: 14px; }
+/* Récap de la nuit */
+.score-ligne { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.score-ligne .eq { font-family: var(--police-titre); font-weight: 600; font-size: 22px; color: var(--discret); }
+.score-ligne .eq.gagne { color: var(--texte); font-weight: 700; }
+.score-ligne .eq.droite { text-align: right; }
+.score-ligne .score { font: 700 30px var(--police-titre); letter-spacing: .04em; text-align: center; }
+.score-meta { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; color: var(--discret); font-size: 13px; }
+.periode { font: 600 11px var(--police-texte); letter-spacing: .08em; text-transform: uppercase; color: var(--discret); padding-top: 4px; }
+.but { display: grid; grid-template-columns: 44px 40px 1fr; gap: 8px; align-items: baseline; font-size: 14px; padding: 4px 0; border-bottom: 1px solid var(--ligne); }
+.but:last-child { border-bottom: 0; }
+.but .t { color: var(--discret); font-variant-numeric: tabular-nums; font-size: 13px; }
+.but .qui { min-width: 0; }
+.but .passes { display: block; color: var(--discret); font-size: 13px; }
+.mini { font: 700 10px var(--police-texte); letter-spacing: .06em; padding: 1px 5px; border-radius: 4px; background: var(--accent-doux); color: var(--accent); margin-left: 4px; vertical-align: 1px; }
+.etoiles { display: grid; gap: 4px; font-size: 14px; padding-top: 8px; border-top: 1px solid var(--ligne); }
+.etoiles b { color: var(--accent); font-family: var(--police-titre); }
 .vide { background: var(--surface); border: 1px dashed var(--ligne); border-radius: 10px; padding: 24px; text-align: center; color: var(--discret); }
 </style>
 
@@ -145,6 +161,7 @@ footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--lig
     <div class="maj" id="maj">Chargement…</div>
   </div>
   <nav class="onglets" role="tablist">
+    <button id="onglet-nuit" role="tab" aria-selected="false">Cette nuit</button>
     <button id="onglet-matchs" role="tab" aria-selected="true">Matchs du soir</button>
     <button id="onglet-joueurs" role="tab" aria-selected="false">Joueurs par match</button>
   </nav>
@@ -294,7 +311,7 @@ function blocJoueurs(eq) {
 
 function vueMatch(id) {
   const m = D.matchs.find((x) => String(x.id) === String(id));
-  if (!m) return `<button class="retour" data-aller="">← Tous les matchs</button><div class="vide">Ce match n'est plus au programme.</div>`;
+  if (!m) return `<button class="retour" data-aller="soir">← Tous les matchs</button><div class="vide">Ce match n'est plus au programme.</div>`;
   const v = calculerVerdict(m);
   // jauge : centre = égalité ; vers la droite = domicile, vers la gauche = extérieur
   const part = Math.max(-1, Math.min(1, v.ecart / 8));
@@ -303,7 +320,7 @@ function vueMatch(id) {
   const titre = v.insuffisant ? "Trop tôt pour juger"
     : v.favori ? `Avantage forme : ${esc(v.favori.nom)}` : "Match équilibré sur la forme";
 
-  return `<button class="retour" data-aller="">← Tous les matchs</button>
+  return `<button class="retour" data-aller="soir">← Tous les matchs</button>
   <div class="duel">
     <div><div class="eq-abbr">${esc(m.exterieur.abbrev)}</div><div class="eq-nom">${esc(m.exterieur.nom)}<br>extérieur</div></div>
     <div class="vs">${heureParis(m.debutUTC)}</div>
@@ -372,15 +389,83 @@ function vueJoueurs() {
   <div class="liste" style="margin-top:12px">${sections}</div>`;
 }
 
+// ---------- VUE : RÉCAP DE LA NUIT ----------
+const NOM_PERIODE = { 1: "1re période", 2: "2e période", 3: "3e période" };
+const FIN = { OT: "Prolongation", SO: "Tirs au but" };
+
+function blocNuit(m) {
+  const e = m.exterieur, d = m.domicile;
+  if (m.etat !== "termine") {
+    return `<section class="bloc"><div class="score-ligne">
+      <div class="eq">${esc(e.abbrev)}</div>
+      <div class="score chiffres">${m.etat === "en-cours" ? `${e.score ?? 0} – ${d.score ?? 0}` : "–"}</div>
+      <div class="eq droite">${esc(d.abbrev)}</div></div>
+      <div class="score-meta">${m.etat === "en-cours" ? "Match en cours" : "Pas encore joué"}</div></section>`;
+  }
+  const gExt = e.score > d.score;
+  // buts groupés par période, dans l'ordre
+  const groupes = [];
+  for (const b of m.buts) {
+    const cle = b.typePeriode === "SO" ? "SO" : b.typePeriode === "OT" ? "OT" : b.periode;
+    let g = groupes.find((x) => x.cle === cle);
+    if (!g) { g = { cle, buts: [] }; groupes.push(g); }
+    g.buts.push(b);
+  }
+  const listeButs = groupes.length
+    ? groupes.map((g) => `<div class="periode">${esc(NOM_PERIODE[g.cle] || FIN[g.cle] || "Période " + g.cle)}</div>
+        ${g.buts.map((b) => `<div class="but">
+          <span class="t">${esc(b.temps)}</span>
+          <span class="tag-eq">${esc(b.equipe)}</span>
+          <span class="qui"><strong>${esc(b.buteur)}</strong>${b.totalSaison != null && g.cle !== "SO" ? ` (${b.totalSaison})` : ""}${b.situation ? b.situation.split(" ").map((x) => `<span class="mini" title="${{ AN: "Avantage numérique", IN: "Infériorité numérique", FV: "Filet vide" }[x] || ""}">${x}</span>`).join("") : ""}
+            ${g.cle === "SO" ? "" : `<span class="passes">${b.passes.length ? "Passes : " + b.passes.map((a) => esc(a.nom) + (a.total != null ? ` (${a.total})` : "")).join(", ") : "Sans passe"}</span>`}
+          </span></div>`).join("")}`).join("")
+    : `<div class="regle">Aucun but marqué.</div>`;
+  const etoiles = m.etoiles?.length
+    ? `<div class="etoiles"><span class="etiquette">Étoiles du match</span>${m.etoiles.map((s) => `<div><b>${"★".repeat(s.rang)}</b> ${esc(s.nom)} <span class="regle">${esc(s.equipe)}${s.buts != null && s.poste !== "G" ? ` · ${s.buts} B, ${s.passes ?? 0} A` : ""}</span></div>`).join("")}</div>`
+    : "";
+  return `<section class="bloc">
+    <div class="score-ligne">
+      <div class="eq${gExt ? " gagne" : ""}">${esc(e.abbrev)}</div>
+      <div class="score chiffres">${e.score} – ${d.score}</div>
+      <div class="eq droite${!gExt ? " gagne" : ""}">${esc(d.abbrev)}</div>
+    </div>
+    <div class="score-meta chiffres">
+      ${FIN[m.fin] ? `<span class="puce avantage">${FIN[m.fin]}</span>` : ""}
+      ${e.tirs != null ? `<span>Tirs ${e.tirs} – ${d.tirs}</span>` : ""}
+      ${m.presaison ? `<span>Présaison</span>` : ""}
+    </div>
+    <div>${listeButs}</div>
+    ${etoiles}
+  </section>`;
+}
+
+function vueNuit() {
+  const r = D.recap;
+  if (!r) return `<div class="vide">Le récap de la nuit n'est pas encore disponible. Il se met à jour vers 7h.</div>`;
+  const date = new Date(r.date + "T12:00:00Z").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  const tete = `<div class="titre-section"><h2>Cette nuit</h2><span class="etiquette">Matchs du ${date} (heure locale)</span></div>`;
+  if (!r.matchs.length) return tete + `<div class="vide" style="margin-top:12px">Pas de match NHL cette nuit.</div>`;
+  // matchs terminés d'abord
+  const tri = [...r.matchs].sort((a, b) => (a.etat === "termine" ? 0 : 1) - (b.etat === "termine" ? 0 : 1));
+  return tete + `<div class="regle" style="margin-top:4px">AN : avantage numérique · IN : infériorité numérique · FV : filet vide · (chiffre) : total de la saison</div>
+    <div class="liste" style="margin-top:12px">${tri.map(blocNuit).join("")}</div>`;
+}
+
 // ---------- NAVIGATION ----------
+// Sans onglet choisi : le matin on montre la nuit, l'après-midi les matchs du soir
+function ongletParDefaut() {
+  const h = Number(new Date().toLocaleString("en-GB", { timeZone: "Europe/Paris", hour: "2-digit", hour12: false }));
+  return h < 14 && D.recap?.matchs?.length ? "nuit" : "soir";
+}
 function afficher() {
-  const h = location.hash.replace("#", "");
+  let h = location.hash.replace("#", "");
+  if (!h) h = ongletParDefaut();
   const vue = document.getElementById("vue");
-  const joueurs = h === "joueurs";
-  document.getElementById("onglet-matchs").setAttribute("aria-selected", String(!joueurs));
-  document.getElementById("onglet-joueurs").setAttribute("aria-selected", String(joueurs));
+  const onglet = h === "nuit" ? "nuit" : h === "joueurs" ? "joueurs" : "matchs";
+  for (const o of ["nuit", "matchs", "joueurs"]) document.getElementById("onglet-" + o).setAttribute("aria-selected", String(o === onglet));
   if (h.startsWith("match-")) vue.innerHTML = vueMatch(h.slice(6));
-  else if (joueurs) vue.innerHTML = vueJoueurs();
+  else if (h === "joueurs") vue.innerHTML = vueJoueurs();
+  else if (h === "nuit") vue.innerHTML = vueNuit();
   else vue.innerHTML = vueMatchs();
   vue.style.display = "grid"; vue.style.gap = "16px";
 }
@@ -390,7 +475,8 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("[data-aller]");
   if (b) { e.preventDefault(); aller(b.dataset.aller); }
 });
-document.getElementById("onglet-matchs").onclick = () => aller("");
+document.getElementById("onglet-nuit").onclick = () => aller("nuit");
+document.getElementById("onglet-matchs").onclick = () => aller("soir");
 document.getElementById("onglet-joueurs").onclick = () => aller("joueurs");
 window.addEventListener("hashchange", () => { afficher(); compterVisite(); });
 
