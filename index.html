@@ -161,6 +161,13 @@ nav.onglets button:focus-visible { outline-offset: -3px; }
 .blesses li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--ligne); font-size: 14px; }
 .blesses li:last-child { border-bottom: 0; padding-bottom: 0; }
 .blesses .detail { grid-column: 1 / -1; }
+.compos .sous-titre { font: 600 15px var(--police-titre); letter-spacing: .04em; text-transform: uppercase; margin-top: 12px; }
+.compos table { margin-top: 4px; }
+.alignement { margin-top: 6px; font-size: 14px; }
+.alignement p, .absents { margin: 2px 0 0; line-height: 1.55; }
+.absents { font-size: 14px; }
+.alignement .nom { white-space: nowrap; }
+.mini.rouge { background: transparent; color: var(--defaite); border: 1px solid currentColor; }
 .puce.grave { color: var(--defaite); border-color: currentColor; }
 .puce.incertain { color: var(--nul); border-color: currentColor; }
 .tuile.petite { font-size: 14px; min-width: 40px; padding: 4px 6px 3px; }
@@ -480,6 +487,50 @@ function blocBlesses(m) {
   </section>`;
 }
 
+// ---------- COMPOS ----------
+// « C. Bedard » (NHL) et « Connor Bedard » (ESPN) désignent le même joueur
+const cleJoueur = (nom) => {
+  const p = String(nom || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\./g, "").trim().split(/\s+/);
+  return p.length > 1 ? p[0][0] + " " + p.slice(1).join(" ") : p[0] || "";
+};
+function estBlesse(abbrev, nom) {
+  const cle = cleJoueur(nom);
+  return (D.blesses?.[abbrev] || []).some((b) => cleJoueur(b.nom) === cle);
+}
+
+function colonneCompo(eq) {
+  const c = D.equipes[eq.abbrev]?.compo;
+  if (!c) return `<div class="regle">Pas encore de match joué cette saison.</div>`;
+  const pct = (v) => (v == null ? "—" : (v * 100).toFixed(1).replace(".", ",") + " %");
+  const dm = c.dernierMatch;
+  const repos = joursRepos(eq.abbrev);
+  const dateDm = dm.date ? new Date(dm.date + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" }) : "";
+  const liste = (js) => js.map((j) => `<span class="nom">${esc(j.nom)}${estBlesse(eq.abbrev, j.nom) ? ` <span class="mini rouge">blessé</span>` : ""}</span>`).join(" · ");
+  return `
+    <div class="sous-titre">Gardiens <span class="regle">(${c.nbMatchs} derniers matchs)</span></div>
+    <table class="chiffres"><thead><tr><th>Gardien</th><th class="n">Titulaire</th><th class="n">% arrêts</th></tr></thead>
+      <tbody>${c.gardiens.map((g) => `<tr>
+        <td>${esc(g.nom)}${g.nom === dm.titulaire ? ` <span class="mini">dernier match</span>` : ""}${estBlesse(eq.abbrev, g.nom) ? ` <span class="mini rouge">blessé</span>` : ""}</td>
+        <td class="n">${g.titularisations}/${c.nbMatchs}</td><td class="n">${pct(g.pct)}</td></tr>`).join("")}</tbody></table>
+    ${repos === 0 && dm.titulaire ? `<div class="regle"><strong class="alerte">Back-to-back :</strong> ${esc(dm.titulaire)} a commencé hier. Les équipes font souvent tourner leur gardien dans ce cas.</div>` : ""}
+    <div class="sous-titre">Dernier match <span class="regle">(${dateDm}${dm.adversaire ? `, ${dm.domicile ? "contre" : "à"} ${esc(dm.adversaire)}` : ""}${dm.presaison ? ", présaison" : ""})</span></div>
+    <div class="alignement"><span class="regle">Attaquants</span><p>${liste(dm.attaquants) || "—"}</p></div>
+    <div class="alignement"><span class="regle">Défenseurs</span><p>${liste(dm.defenseurs) || "—"}</p></div>
+    ${c.absents.length ? `<div class="sous-titre">Habitués absents du dernier match</div>
+      <p class="absents">${c.absents.map((a) => `${esc(a.nom)} <span class="regle">(${a.fois}/${a.sur} matchs avant)</span>${estBlesse(eq.abbrev, a.nom) ? ` <span class="mini rouge">blessé</span>` : ""}`).join(" · ")}</p>` : ""}`;
+}
+
+function blocCompos(m) {
+  return `<section class="bloc compos">
+    <h3>Compos</h3>
+    <div class="grille-2 serre">
+      <div><span class="tuile petite">${esc(m.exterieur.abbrev)}</span>${colonneCompo(m.exterieur)}</div>
+      <div><span class="tuile petite">${esc(m.domicile.abbrev)}</span>${colonneCompo(m.domicile)}</div>
+    </div>
+    <div class="regle">Ce n'est pas la compo officielle du soir : elle n'est connue qu'au début du match. On montre qui a joué le dernier match, la rotation des gardiens et les absences récentes.</div>
+  </section>`;
+}
+
 function puceVerdict(v) {
   if (v.insuffisant) return `<span class="puce equilibre">Trop tôt pour juger</span>`;
   return v.favori
@@ -581,6 +632,7 @@ function vueMatch(id) {
 
   ${blocContexte(m, v)}
   ${blocBlesses(m)}
+  ${blocCompos(m)}
 
   <div class="grille-2">
     ${blocForme(m.exterieur, v.ext, "ext", bilanLieu(m.exterieur.abbrev, false))}

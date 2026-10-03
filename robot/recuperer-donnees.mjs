@@ -301,6 +301,80 @@ export function lireBlesses(json, equipesDuSoir) {
   return parEquipe;
 }
 
+// ============================================================
+//  6) LES COMPOS : alignement du dernier match, gardiens, habitués absents
+// ============================================================
+const aJoue = (j) => j.toi && j.toi !== "00:00";
+const minutes = (toi) => { const [m, s] = String(toi || "0:0").split(":").map(Number); return (m || 0) + (s || 0) / 60; };
+
+export function construireCompo(feuilles, matchs, abbrev) {
+  // feuilles[0] = le match le plus récent
+  const lignes = feuilles.map((f, i) => {
+    const cote = f.homeTeam?.abbrev === abbrev ? "homeTeam" : "awayTeam";
+    const st = f.playerByGameStats?.[cote] || {};
+    const gardiensJoues = (st.goalies || []).filter(aJoue);
+    // Le titulaire : indiqué par la NHL si disponible, sinon celui qui a joué le plus longtemps
+    const titulaire = gardiensJoues.find((g) => g.starter === true)
+      || [...gardiensJoues].sort((a, b) => minutes(b.toi) - minutes(a.toi))[0];
+    return {
+      match: matchs[i],
+      attaquants: (st.forwards || []).filter(aJoue),
+      defenseurs: (st.defense || []).filter(aJoue),
+      gardiens: gardiensJoues,
+      titulaire,
+    };
+  });
+  if (!lignes.length) return null;
+
+  // Rotation des gardiens sur les derniers matchs
+  const gardiens = new Map();
+  for (const l of lignes) {
+    for (const g of l.gardiens) {
+      const x = gardiens.get(g.playerId) || { nom: txt(g.name), titularisations: 0, matchs: 0, arrets: 0, tirs: 0, victoires: 0 };
+      x.matchs += 1;
+      if (l.titulaire?.playerId === g.playerId) x.titularisations += 1;
+      x.arrets += g.saves ?? 0;
+      x.tirs += g.shotsAgainst ?? 0;
+      if (g.decision === "W") x.victoires += 1;
+      gardiens.set(g.playerId, x);
+    }
+  }
+
+  // Habitués absents : présents dans au moins 3 des matchs précédents, absents du dernier
+  const dernier = lignes[0];
+  const presentsDernier = new Set([...dernier.attaquants, ...dernier.defenseurs].map((j) => j.playerId));
+  const avant = lignes.slice(1);
+  const habitues = new Map();
+  for (const l of avant) {
+    for (const j of [...l.attaquants, ...l.defenseurs]) {
+      const x = habitues.get(j.playerId) || { nom: txt(j.name), poste: j.position, fois: 0 };
+      x.fois += 1;
+      habitues.set(j.playerId, x);
+    }
+  }
+  const absents = avant.length >= 3
+    ? [...habitues.entries()].filter(([id, x]) => x.fois >= 3 && !presentsDernier.has(id)).map(([, x]) => ({ nom: x.nom, poste: x.poste, sur: avant.length, fois: x.fois }))
+    : [];
+
+  const nomsTries = (liste) => [...liste].sort((a, b) => minutes(b.toi) - minutes(a.toi)).map((j) => ({ nom: txt(j.name), poste: j.position, temps: j.toi }));
+  return {
+    dernierMatch: {
+      date: dernier.match?.date || null,
+      adversaire: dernier.match?.adversaire || "",
+      domicile: dernier.match?.domicile ?? null,
+      presaison: Boolean(dernier.match?.presaison),
+      attaquants: nomsTries(dernier.attaquants),
+      defenseurs: nomsTries(dernier.defenseurs),
+      titulaire: dernier.titulaire ? txt(dernier.titulaire.name) : null,
+    },
+    gardiens: [...gardiens.values()]
+      .map((g) => ({ ...g, pct: g.tirs ? g.arrets / g.tirs : null }))
+      .sort((a, b) => b.titularisations - a.titularisations || b.matchs - a.matchs),
+    nbMatchs: lignes.length,
+    absents,
+  };
+}
+
 export async function construireDonnees(fetcher = fetch) {
   const calendrier = await lire("/schedule/now", fetcher);
   const soir = extraireMatchsDuSoir(calendrier);
@@ -338,9 +412,11 @@ export async function construireDonnees(fetcher = fetch) {
     }
 
     const feuilles = [];
+    const matchsLus = []; // le match correspondant à chaque feuille, dans le même ordre
     for (const m of forme) {
       try {
         feuilles.push(await lire(`/gamecenter/${m.id}/boxscore`, fetcher));
+        matchsLus.push(m);
       } catch (e) {
         console.warn(`Feuille de match ${m.id} indisponible : ${e.message}`);
       }
@@ -349,6 +425,7 @@ export async function construireDonnees(fetcher = fetch) {
     equipes[abbrev] = {
       historique,
       joueurs: cumulerJoueurs(feuilles, abbrev, effectif),
+      compo: construireCompo(feuilles, matchsLus, abbrev),
     };
     console.log(`✓ ${abbrev} : ${officiels.length} matchs officiels + ${presaison.length} de présaison, effectif ${effectif ? effectif.size + " joueurs" : "non filtré"}`);
   }
