@@ -156,6 +156,13 @@ nav.onglets button:focus-visible { outline-offset: -3px; }
 .puce.equilibre { color: var(--discret); }
 .puce.fatigue { color: var(--defaite); border-color: currentColor; }
 .alerte { color: var(--defaite); }
+.grille-2.serre { gap: 16px; }
+.blesses { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.blesses li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: baseline; padding-bottom: 8px; border-bottom: 1px solid var(--ligne); font-size: 14px; }
+.blesses li:last-child { border-bottom: 0; padding-bottom: 0; }
+.blesses .detail { grid-column: 1 / -1; }
+.puce.grave { color: var(--defaite); border-color: currentColor; }
+.puce.incertain { color: var(--nul); border-color: currentColor; }
 .tuile.petite { font-size: 14px; min-width: 40px; padding: 4px 6px 3px; }
 .contexte td:first-child { color: var(--discret); }
 
@@ -447,6 +454,32 @@ function blocContexte(m, v) {
   </section>`;
 }
 
+// ---------- BLESSÉS ----------
+function blocBlesses(m) {
+  const dateCourte = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
+  const colonne = (eq) => {
+    if (!D.blesses) return `<div class="regle">Liste des blessés indisponible pour le moment.</div>`;
+    const liste = D.blesses[eq.abbrev] || [];
+    if (!liste.length) return `<div class="regle">Aucun blessé signalé.</div>`;
+    return `<ul class="blesses">${liste.map((b) => {
+      const grave = /Absent|Liste|Suspendu/.test(b.statut);
+      return `<li>
+        <span class="qui"><strong>${esc(b.nom)}</strong> <span class="regle">${esc(b.poste)}</span></span>
+        <span class="puce ${grave ? "grave" : "incertain"}">${esc(b.statut || "Blessé")}</span>
+        <span class="regle detail">${[b.zone, b.precision].filter(Boolean).map(esc).join(" · ")}${b.retour ? `${b.zone ? " · " : ""}retour estimé ${dateCourte(b.retour)}` : ""}</span>
+      </li>`;
+    }).join("")}</ul>`;
+  };
+  return `<section class="bloc">
+    <h3>Blessés et absents</h3>
+    <div class="grille-2 serre">
+      <div><span class="tuile petite">${esc(m.exterieur.abbrev)}</span>${colonne(m.exterieur)}</div>
+      <div><span class="tuile petite">${esc(m.domicile.abbrev)}</span>${colonne(m.domicile)}</div>
+    </div>
+    <div class="regle">Source : liste publique d'ESPN, mise à jour à chaque passage du robot. « Incertain » = décision le jour du match.</div>
+  </section>`;
+}
+
 function puceVerdict(v) {
   if (v.insuffisant) return `<span class="puce equilibre">Trop tôt pour juger</span>`;
   return v.favori
@@ -546,6 +579,7 @@ function vueMatch(id) {
   </section>
 
   ${blocContexte(m, v)}
+  ${blocBlesses(m)}
 
   <div class="grille-2">
     ${blocForme(m.exterieur, v.ext, "ext", bilanLieu(m.exterieur.abbrev, false))}

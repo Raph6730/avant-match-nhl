@@ -28,9 +28,10 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 // Lit une adresse NHL, avec 3 essais si le serveur est surchargé ou coupe la connexion
 async function lire(chemin, fetcher) {
   let derniere;
+  const url = chemin.startsWith("http") ? chemin : API + chemin; // adresse complète = autre source
   for (let essai = 1; essai <= 3; essai++) {
     try {
-      const rep = await fetcher(API + chemin);
+      const rep = await fetcher(url);
       if (rep.ok) {
         await pause(PAUSE_ENTRE_APPELS);
         return await rep.json();
@@ -46,7 +47,7 @@ async function lire(chemin, fetcher) {
 }
 
 const nomEquipe = (t) => `${t.placeName?.fr || t.placeName?.default || ""} ${t.commonName?.fr || t.commonName?.default || ""}`.trim();
-const equipeCourte = (t) => ({ abbrev: t.abbrev, nom: nomEquipe(t), logo: t.darkLogo || t.logo });
+const equipeCourte = (t) => ({ abbrev: t.abbrev, nom: nomEquipe(t), surnom: t.commonName?.default || "", logo: t.darkLogo || t.logo });
 
 // 1) Les matchs du soir : le premier jour du calendrier qui a encore des matchs à venir
 export function extraireMatchsDuSoir(calendrier) {
@@ -240,6 +241,52 @@ export async function construireRecap(fetcher, date = dateDeLaNuit()) {
   return { date, matchs, controle: premier ? Object.keys(premier) : [] };
 }
 
+// ============================================================
+//  5) LES BLESSÉS (source : liste publique d'ESPN, toute la NHL en un appel)
+// ============================================================
+const URL_BLESSES = "https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/injuries";
+
+// "Montréal" et "Montreal" doivent se reconnaître
+const simple = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+const STATUT = {
+  "out": "Absent",
+  "day-to-day": "Incertain",
+  "injured reserve": "Liste des blessés",
+  "long-term injured reserve": "Liste des blessés (longue durée)",
+  "suspension": "Suspendu",
+  "suspended": "Suspendu",
+};
+const ZONE = {
+  "upper body": "Haut du corps", "lower body": "Bas du corps", "head": "Tête", "concussion": "Commotion",
+  "knee": "Genou", "ankle": "Cheville", "shoulder": "Épaule", "hand": "Main", "wrist": "Poignet",
+  "back": "Dos", "groin": "Aine", "hip": "Hanche", "foot": "Pied", "leg": "Jambe", "neck": "Cou",
+  "illness": "Maladie", "undisclosed": "Non communiqué", "personal": "Raison personnelle", "eye": "Œil",
+  "elbow": "Coude", "face": "Visage", "finger": "Doigt", "hamstring": "Ischio-jambiers", "abdomen": "Abdomen",
+};
+const traduire = (table, v) => (v ? table[simple(v)] || v : "");
+
+export function lireBlesses(json, equipesDuSoir) {
+  const parEquipe = {};
+  for (const bloc of json?.injuries || []) {
+    const liste = bloc.injuries || [];
+    const nomEspn = simple(bloc.displayName || liste[0]?.athlete?.team?.displayName);
+    // On retrouve l'équipe par son surnom (ex. « Canadiens ») à la fin du nom ESPN
+    const equipe = equipesDuSoir.find((e) => e.surnom && nomEspn.endsWith(simple(e.surnom)));
+    if (!equipe) continue;
+    parEquipe[equipe.abbrev] = liste.map((b) => ({
+      nom: b.athlete?.displayName || b.athlete?.fullName || "",
+      poste: b.athlete?.position?.abbreviation || "",
+      statut: traduire(STATUT, b.status || b.type?.description),
+      zone: traduire(ZONE, b.details?.type),
+      precision: b.details?.location && b.details?.location !== b.details?.type ? traduire(ZONE, b.details.location) : "",
+      retour: b.details?.returnDate || null,
+      depuis: b.date ? String(b.date).slice(0, 10) : null,
+    })).filter((b) => b.nom);
+  }
+  return parEquipe;
+}
+
 export async function construireDonnees(fetcher = fetch) {
   const calendrier = await lire("/schedule/now", fetcher);
   const soir = extraireMatchsDuSoir(calendrier);
@@ -293,9 +340,23 @@ export async function construireDonnees(fetcher = fetch) {
     console.log(`::warning::Récap de la nuit indisponible : ${e.message}`);
   }
 
+  // Les blessés : en cas d'échec, le site se met quand même à jour
+  let blesses = null;
+  try {
+    const equipesDuSoir = soir.matchs.flatMap((m) => [m.domicile, m.exterieur]);
+    const json = await lire(URL_BLESSES, fetcher);
+    blesses = lireBlesses(json, equipesDuSoir);
+    const premier = json?.injuries?.find((b) => b.injuries?.length)?.injuries?.[0];
+    blesses._controle = premier ? Object.keys(premier) : [];
+    console.log(`✓ Blessés : ${Object.keys(blesses).length - 1} équipes du soir trouvées`);
+  } catch (e) {
+    console.log(`::warning::Liste des blessés indisponible : ${e.message}`);
+  }
+
   return {
     misAJour: new Date().toISOString(),
     recap,
+    blesses,
     saisonEnCours: calendrier.gameWeek?.[0]?.games?.[0]?.season || null,
     dateDesMatchs: soir.date,
     reglages: { nbMatchsForme: NB_MATCHS_FORME, nbMatchsDomExt: NB_MATCHS_DOM_EXT },
