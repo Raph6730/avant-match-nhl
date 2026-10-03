@@ -515,6 +515,7 @@ function vueMatchs() {
 // ---------- VUE : PAGE D'UN MATCH ----------
 function blocForme(eq, f, lieu, b) {
   const rec = `${f.v}-${f.d}-${f.dp}`;
+  if (D.equipes[eq.abbrev]?.indisponible) return `<div class="bloc"><h3>${esc(eq.abbrev)} · forme</h3><div class="regle">Données momentanément indisponibles. Elles reviendront au prochain passage du robot.</div></div>`;
   if (!f.n) return `<div class="bloc"><h3>${esc(eq.abbrev)} · forme</h3><div class="regle">Premier match de la saison ce soir : pas encore de forme à afficher.</div></div>`;
   return `<div class="bloc">
     <h3>${esc(eq.abbrev)} · forme</h3>

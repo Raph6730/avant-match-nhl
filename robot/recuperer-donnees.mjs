@@ -18,30 +18,41 @@ import { writeFile } from "node:fs/promises";
 const NB_MATCHS_FORME = 5;      // matchs utilisés pour la forme (équipes + joueurs)
 const NB_MATCHS_DOM_EXT = 10;   // matchs utilisés pour le bilan domicile / extérieur
 const NB_JOUEURS_GARDES = 8;    // joueurs gardés par équipe dans le fichier
-const PAUSE_ENTRE_APPELS = 200; // millisecondes entre deux appels (politesse envers la NHL)
+const PAUSE_ENTRE_APPELS = 400; // millisecondes entre deux appels (politesse envers la NHL)
 const FICHIER_SORTIE = "data.json";
 // ------------------------------
 
 const API = "https://api-web.nhle.com/v1";
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Lit une adresse NHL, avec 3 essais si le serveur est surchargé ou coupe la connexion
+// Lit une adresse NHL. Si le serveur dit « trop de demandes » (429) ou est surchargé,
+// on attend de plus en plus longtemps (jusqu'à 5 essais).
+// Une même adresse n'est jamais lue deux fois pendant un passage du robot.
+const dejaLu = new Map();
 async function lire(chemin, fetcher) {
-  let derniere;
   const url = chemin.startsWith("http") ? chemin : API + chemin; // adresse complète = autre source
-  for (let essai = 1; essai <= 3; essai++) {
+  if (dejaLu.has(url)) return dejaLu.get(url);
+  let derniere;
+  for (let essai = 1; essai <= 5; essai++) {
+    let attente = 2000 * essai;
     try {
       const rep = await fetcher(url);
       if (rep.ok) {
         await pause(PAUSE_ENTRE_APPELS);
-        return await rep.json();
+        const json = await rep.json();
+        dejaLu.set(url, json);
+        return json;
       }
       derniere = new Error(`Erreur ${rep.status} sur ${chemin}`);
       if (rep.status !== 429 && rep.status < 500) break; // inutile de réessayer
+      if (rep.status === 429) {
+        const indique = Number(rep.headers?.get?.("retry-after"));
+        attente = indique > 0 ? indique * 1000 : 10000 * essai; // 10 s, 20 s, 30 s…
+      }
     } catch (e) {
       derniere = new Error(`${e.message} sur ${chemin}`);
     }
-    await pause(1500 * essai);
+    if (essai < 5) await pause(attente);
   }
   throw derniere;
 }
@@ -295,7 +306,15 @@ export async function construireDonnees(fetcher = fetch) {
   const equipes = {};
 
   for (const abbrev of abbrevs) {
-    const cal = await lire(`/club-schedule-season/${abbrev}/now`, fetcher);
+    let cal;
+    try {
+      cal = await lire(`/club-schedule-season/${abbrev}/now`, fetcher);
+    } catch (e) {
+      // Une équipe en échec ne doit pas bloquer tout le site
+      console.log(`::warning::Calendrier indisponible pour ${abbrev} : ${e.message}`);
+      equipes[abbrev] = { historique: [], joueurs: [], indisponible: true };
+      continue;
+    }
     // Saison en cours uniquement : les effectifs changent trop d'une saison à l'autre.
     const saison = matchsTermines(cal, abbrev).filter((m) => !cal.currentSeason || m.saison === cal.currentSeason);
     const officiels = saison.filter((m) => !m.presaison).slice(0, NB_MATCHS_DOM_EXT);
