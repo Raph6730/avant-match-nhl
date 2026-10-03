@@ -401,7 +401,7 @@ export async function construireClassement(fetcher, saison) {
       plusMoins: j.plusMinus ?? null,
       tirs: j.shots ?? null,
       pointsAN: j.ppPoints ?? null,
-    })).filter((j) => j.nom);
+    })).filter((j) => j.nom).slice(0, NB_CLASSEMENT);
     if (lignes.length) return { source: "stats", lignes };
   } catch (e) {
     console.log(`::warning::Stats détaillées indisponibles, repli sur les meneurs : ${e.message}`);
