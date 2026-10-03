@@ -8,6 +8,8 @@ Ton outil d'analyse des matchs NHL du soir, pour parieurs.
 |---|---|---|
 | `index.html` | La page que voient les visiteurs, et le calcul de l'indicateur | Oui : textes, couleurs (en haut, dans `:root`), règles de l'indicateur (début du script, « RÉGLAGES DE L'INDICATEUR ») |
 | `robot/recuperer-donnees.mjs` | Le robot qui va chercher les données NHL | Rarement : seulement si la NHL change ses données |
+| `confidentialite.html`, `mentions-legales.html` | Les pages légales (liées en bas du site) | Si tes pratiques changent |
+| `polices/` | Les polices du site, hébergées ici plutôt que chez Google | Non |
 | `.github/workflows/mise-a-jour.yml` | Le planning : lance le robot vers 7h, 8h47 et 16h47 (heure de Paris, une heure plus tôt en hiver) et met le site à jour | Presque jamais |
 
 ## Mettre le site en ligne (une seule fois, ~15 minutes)
@@ -37,3 +39,11 @@ Ouvre `index.html` sur GitHub, clique sur le crayon ✏️, modifie, puis « Com
 - Le récap de la nuit montre les matchs de la veille (heure de New York) ; GitHub peut lancer le robot avec 10 à 30 minutes de retard.
 - Saison en cours uniquement : tant qu'une équipe a joué moins de 3 matchs, l'indicateur affiche « Trop tôt pour juger ».
 - Source NHL non officielle : elle peut changer sans prévenir.
+
+## Activer la publicité (Google AdSense)
+
+1. Crée ton compte sur adsense.google.com et déclare le site.
+2. Dans AdSense, crée un bloc d'annonces « display ». Note ton identifiant éditeur (`ca-pub-…`) et l'identifiant du bloc.
+3. Dans `index.html`, remplis `PUB_CLIENT` et `PUB_EMPLACEMENT` (section « PUBLICITÉS »). Les bannières apparaissent après le 2e match de chaque liste.
+4. Dans AdSense → « Confidentialité et messages », active le message de consentement RGPD de Google (obligatoire en Europe).
+5. Le fichier `ads.txt` doit être à la racine `raph6730.github.io/ads.txt` : il vit dans un dépôt séparé nommé `raph6730.github.io`.

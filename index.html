@@ -7,10 +7,15 @@
 <!-- Compteur de visites GoatCounter (code fourni par GoatCounter) -->
 <script data-goatcounter="https://raph6730.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <meta name="description" content="Les matchs NHL du soir analysés pour préparer tes paris : forme, domicile/extérieur, joueurs en forme.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
+/* Polices hébergées sur le site (aucune connexion à Google Fonts) */
+@font-face { font-family: "Barlow Condensed"; font-weight: 500; font-style: normal; font-display: swap; src: url("polices/barlow-condensed-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-style: normal; font-display: swap; src: url("polices/barlow-condensed-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-style: normal; font-display: swap; src: url("polices/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 400; font-style: normal; font-display: swap; src: url("polices/barlow-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-style: normal; font-display: swap; src: url("polices/barlow-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-style: normal; font-display: swap; src: url("polices/barlow-latin-600-normal.woff2") format("woff2"); }
+
 /* Mise en page : une colonne mobile d'abord. Bandeau noir façon tableau d'affichage
    d'aréna, fond couleur glace, tracés de patinoire en illustration.
    ---- RÉGLAGES DE COULEUR ET DE POLICE (tu peux les modifier ici) ---- */
@@ -190,6 +195,8 @@ footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--lig
 .gardiens { padding-top: 8px; border-top: 1px solid var(--ligne); display: grid; gap: 4px; }
 .gardiens table { font-size: 14px; }
 .gardiens td, .gardiens th { padding: 5px 4px; }
+.pub { display: grid; gap: 4px; min-height: 100px; }
+.pub .etiquette { font-size: 10px; }
 .vide { background: var(--surface); border: 1px dashed var(--ligne); border-radius: 10px; padding: 24px; text-align: center; color: var(--discret); }
 /* petit palet dessiné au-dessus des messages vides */
 .vide::before {
@@ -253,7 +260,8 @@ footer { color: var(--discret); font-size: 12px; border-top: 1px solid var(--lig
   <div id="vue"></div>
   <footer>
     Outil d'information, pas un conseil de pari. Jouer comporte des risques : endettement, dépendance… Appelez le 09 74 75 13 13 (appel non surtaxé).<br>
-    Données : NHL (source publique non officielle). Heures affichées à l'heure de Paris.
+    Données : NHL (source publique non officielle). Heures affichées à l'heure de Paris.<br>
+    <a href="mentions-legales.html">Mentions légales</a> · <a href="confidentialite.html">Confidentialité</a>
   </footer>
 </main>
 
@@ -272,6 +280,39 @@ const BONUS_DOMICILE = 1;           // avantage de la glace
 const SEUIL_AVANTAGE = 3;           // écart minimum pour annoncer un avantage
 const MIN_MATCHS_INDICATEUR = 3;    // en dessous, pas de verdict (début de saison)
 // ----------------------------------------------------
+
+// ---- PUBLICITÉS (Google AdSense) ----
+// Tant que ces deux réglages sont vides, aucune pub ne s'affiche
+// et aucun script Google n'est chargé.
+const PUB_CLIENT = "";       // ton identifiant éditeur, ex. "ca-pub-1234567890123456"
+const PUB_EMPLACEMENT = "";  // l'identifiant du bloc d'annonces créé dans AdSense, ex. "1234567890"
+const PUB_APRES = 2;         // une bannière après le 2e match de chaque liste
+// ----------------------------------------------------
+
+function pubActive() { return Boolean(PUB_CLIENT && PUB_EMPLACEMENT); }
+function emplacementPub() {
+  if (!pubActive()) return "";
+  return `<aside class="pub" aria-label="Publicité"><span class="etiquette">Publicité</span>
+    <ins class="adsbygoogle" style="display:block" data-ad-client="${PUB_CLIENT}" data-ad-slot="${PUB_EMPLACEMENT}" data-ad-format="auto" data-full-width-responsive="true"></ins></aside>`;
+}
+// Place une bannière après le N-ième élément d'une liste (si la liste est assez longue)
+function avecPub(elements) {
+  if (!pubActive() || elements.length <= PUB_APRES) return elements.join("");
+  return [...elements.slice(0, PUB_APRES), emplacementPub(), ...elements.slice(PUB_APRES)].join("");
+}
+// Demande à Google de remplir les nouveaux emplacements affichés
+function remplirPubs() {
+  if (!pubActive()) return;
+  document.querySelectorAll("ins.adsbygoogle:not([data-adsbygoogle-status])").forEach(() => {
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+  });
+}
+if (pubActive()) {
+  const s = document.createElement("script");
+  s.async = true; s.crossOrigin = "anonymous";
+  s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${PUB_CLIENT}`;
+  document.head.appendChild(s);
+}
 
 // ---- COMPTEUR DE VISITES (GoatCounter, gratuit, sans cookies) ----
 // Le script officiel est chargé dans le <head> (cherche "goatcounter").
@@ -351,14 +392,14 @@ function pastilles(f) {
 // ---------- VUE : LISTE DES MATCHS ----------
 function vueMatchs() {
   if (!D.matchs.length) return `<div class="vide">Pas de match NHL prévu pour l'instant. Reviens plus tard.</div>`;
-  const cartes = D.matchs.map((m) => {
+  const cartes = avecPub(D.matchs.map((m) => {
     const v = calculerVerdict(m);
     return `<a class="carte-match" href="#match-${m.id}">
       <div class="affiche"><span class="tuile">${esc(m.exterieur.abbrev)}</span><span class="at">@</span><span class="tuile">${esc(m.domicile.abbrev)}</span></div>
       <div class="heure chiffres">${heureParis(m.debutUTC)}</div>
       <div class="sous">${puceVerdict(v)}<span>${esc(m.exterieur.nom)} chez ${esc(m.domicile.nom)}</span>${v.dom.nPresaison || v.ext.nPresaison ? `<span>· inclut la présaison</span>` : ""}</div>
     </a>`;
-  }).join("");
+  }));
   return `<div class="titre-section"><h2>Matchs du soir</h2><span class="etiquette">${D.matchs[0] ? dateParis(D.matchs[0].debutUTC) : ""}</span></div>
     <div class="liste" style="margin-top:12px">${cartes}</div>`;
 }
@@ -443,7 +484,7 @@ function vueMatch(id) {
 function vueJoueurs() {
   if (!D.matchs.length) return `<div class="vide">Pas de match ce soir.</div>`;
   const N_PAR_MATCH = 6; // joueurs affichés par match
-  const sections = D.matchs.map((m) => {
+  const sections = avecPub(D.matchs.map((m) => {
     const lignes = [];
     for (const eq of [m.exterieur, m.domicile]) {
       for (const p of D.equipes[eq.abbrev]?.joueurs || []) lignes.push({ ...p, equipe: eq.abbrev });
@@ -464,7 +505,7 @@ function vueJoueurs() {
       </div>
       ${corps}
     </section>`;
-  }).join("");
+  }));
   const n = D.reglages?.nbMatchsForme || 5;
   return `<div class="titre-section"><h2>Joueurs par match</h2><span class="etiquette">Les plus en forme · ${n} derniers matchs</span></div>
   <div class="liste" style="margin-top:12px">${sections}</div>`;
@@ -546,7 +587,7 @@ function vueNuit() {
   // matchs terminés d'abord
   const tri = [...r.matchs].sort((a, b) => (a.etat === "termine" ? 0 : 1) - (b.etat === "termine" ? 0 : 1));
   return tete + `<div class="regle" style="margin-top:4px">AN : avantage numérique · IN : infériorité numérique · FV : filet vide · BL : blanchissage · (chiffre) : total de la saison</div>
-    <div class="liste" style="margin-top:12px">${tri.map(blocNuit).join("")}</div>`;
+    <div class="liste" style="margin-top:12px">${avecPub(tri.map(blocNuit))}</div>`;
 }
 
 // ---------- NAVIGATION ----------
@@ -566,6 +607,7 @@ function afficher() {
   else if (h === "nuit") vue.innerHTML = vueNuit();
   else vue.innerHTML = vueMatchs();
   vue.style.display = "grid"; vue.style.gap = "16px";
+  remplirPubs();
 }
 function aller(cible) { location.hash = cible; if (!cible) afficher(); window.scrollTo(0, 0); }
 
